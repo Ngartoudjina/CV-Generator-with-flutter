@@ -110,7 +110,7 @@ class ExperienceCard extends StatelessWidget {
                     style: TextStyle(fontSize: 14, color: scheme.onSurface),
                   ),
                   Text(
-                    '${exp.startDate} — ${exp.isCurrent ? "Présent" : exp.endDate}',
+                    exp.period,
                     style: TextStyle(
                       fontSize: 12,
                       color: scheme.onSurfaceVariant,

@@ -183,7 +183,7 @@ class PdfGenerator {
                 ),
               ),
               pw.Text(
-                '${exp.startDate} — ${exp.isCurrent ? "Présent" : exp.endDate}',
+                exp.period,
                 style: const pw.TextStyle(fontSize: 10, color: _date),
               ),
             ],
@@ -206,9 +206,6 @@ class PdfGenerator {
   }
 
   static pw.Widget _education(Education edu) {
-    final line =
-        edu.field.isEmpty ? edu.school : '${edu.school} · ${edu.field}';
-
     return pw.Padding(
       padding: const pw.EdgeInsets.only(bottom: 8),
       child: pw.Column(
@@ -228,15 +225,18 @@ class PdfGenerator {
                   ),
                 ),
               ),
-              if (edu.startYear.isNotEmpty || edu.endYear.isNotEmpty)
+              if (edu.years.isNotEmpty)
                 pw.Text(
-                  '${edu.startYear} — ${edu.endYear}',
+                  edu.years,
                   style: const pw.TextStyle(fontSize: 10, color: _date),
                 ),
             ],
           ),
           pw.SizedBox(height: 3),
-          pw.Text(line, style: const pw.TextStyle(fontSize: 11, color: _sub)),
+          pw.Text(
+            edu.schoolLine,
+            style: const pw.TextStyle(fontSize: 11, color: _sub),
+          ),
         ],
       ),
     );

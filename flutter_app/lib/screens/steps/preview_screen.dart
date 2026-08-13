@@ -114,8 +114,7 @@ class PreviewScreen extends StatelessWidget {
                                       ),
                                     ),
                                     Text(
-                                      '${exp.startDate} — '
-                                      '${exp.isCurrent ? "Présent" : exp.endDate}',
+                                      exp.period,
                                       style: const TextStyle(
                                         fontSize: 11,
                                         color: Color(0xFF666666),
@@ -174,7 +173,7 @@ class PreviewScreen extends StatelessWidget {
                                       ),
                                     ),
                                     Text(
-                                      '${edu.startYear} — ${edu.endYear}',
+                                      edu.years,
                                       style: const TextStyle(
                                         fontSize: 11,
                                         color: Color(0xFF666666),

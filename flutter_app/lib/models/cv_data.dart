@@ -73,6 +73,17 @@ class Experience {
   final bool isCurrent;
   final String description;
 
+  /// Plage de dates prête à afficher — centralisée ici parce que le PDF,
+  /// l'aperçu et la carte de l'assistant la reconstruisaient chacun de leur
+  /// côté, en produisant « 2021 —  » quand la date de fin manquait.
+  String get period {
+    final start = startDate.trim();
+    final end = isCurrent ? 'Présent' : endDate.trim();
+    if (start.isEmpty) return end;
+    if (end.isEmpty) return start;
+    return '$start — $end';
+  }
+
   Experience copyWith({
     String? company,
     String? position,
@@ -109,6 +120,19 @@ class Education {
   final String field;
   final String startYear;
   final String endYear;
+
+  /// Même logique que [Experience.period] pour les années de formation.
+  String get years {
+    final start = startYear.trim();
+    final end = endYear.trim();
+    if (start.isEmpty) return end;
+    if (end.isEmpty) return start;
+    return '$start — $end';
+  }
+
+  /// Établissement, suivi de la spécialité si elle est renseignée.
+  String get schoolLine =>
+      field.trim().isEmpty ? school : '$school · ${field.trim()}';
 
   Education copyWith({
     String? school,

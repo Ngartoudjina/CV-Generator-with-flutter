@@ -9,7 +9,7 @@ en dehors de ce dossier.
 Portage complet et **vérifié** avec Flutter 3.44.9 / Dart 3.12.2 :
 
 - `flutter analyze` — aucune remontée
-- `flutter test` — 7 tests au vert
+- `flutter test` — 10 tests au vert
 - Plateformes générées : `android/`, `ios/`, `web/`
 
 ## Démarrer
@@ -126,17 +126,29 @@ Deux recettes plus élégantes ont été essayées puis écartées :
 ne reportent pas correctement leur hauteur intrinsèque ; et
 `SliverFillRemaining` borne malgré tout le `Column` à la hauteur de la fenêtre.
 
-**Incohérence héritée de l'original — `EditorScreen` et l'export.**
-`MainActivity.exportPdf()` exportait `viewModel.cvData`, alors que
-`EditorScreen` éditait des `remember { mutableStateOf(...) }` locaux jamais
-écrits dans le ViewModel. Autrement dit : dans la version Android, « Exporter
-PDF » depuis l'éditeur produisait un CV **vide**, sans rapport avec ce qui
-était affiché à l'écran. Le portage reproduit ce comportement à l'identique
-plutôt que de le corriger en douce.
+**`EditorScreen` est branché sur `CvModel` — correction d'un défaut de
+l'original.** `MainActivity.exportPdf()` exportait `viewModel.cvData`, alors
+que `EditorScreen` éditait des `remember { mutableStateOf(...) }` locaux
+jamais écrits dans le ViewModel. Dans la version Android, « Exporter PDF »
+depuis l'éditeur produisait donc un CV **vide**, sans rapport avec l'écran.
+Les sections Expérience et Formation étaient pires encore : valeurs figées et
+`onValueChange` vide, la saisie était perdue à la frappe.
 
-L'assistant, lui, n'a pas ce problème : il écrit dans `CvModel`, donc son
-export reflète bien la saisie. Corriger l'éditeur suppose de brancher ses
-champs sur `CvModel` — un vrai changement de comportement, à décider.
+Désormais tous les champs écrivent dans `CvModel`, le panneau d'aperçu le lit,
+et l'export reflète la saisie. Le contenu de démonstration d'origine sert
+d'amorçage, injecté seulement si le modèle est vide — ouvrir l'éditeur
+n'écrase pas un CV déjà saisi dans l'assistant.
+
+Deux conséquences visibles :
+
+- Le champ unique « Période » devient **Début** et **Fin**, pour alimenter
+  `startDate` et `endDate` séparément.
+- Le flux est à sens unique (champ → modèle). Relire le modèle à chaque
+  frappe replacerait le curseur en début de texte.
+
+`Experience.period`, `Education.years` et `Education.schoolLine` centralisent
+le formatage des plages de dates, qui était dupliqué dans le PDF, l'aperçu et
+l'assistant — et produisait « 2021 —  » quand la date de fin manquait.
 
 **Thème.** `Theme.kt` déclarait un `darkColorScheme` doré alors que les écrans
 principaux peignaient leurs couleurs à la main. Les deux sont conservés :

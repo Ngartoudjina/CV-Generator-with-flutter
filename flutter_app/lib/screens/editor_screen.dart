@@ -1,7 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../models/cv_data.dart';
+import '../state/cv_model.dart';
 import '../theme/colors.dart';
 import '../utils/anim.dart';
 import '../widgets/score_ring.dart';
@@ -49,14 +52,33 @@ class _EditorScreenState extends State<EditorScreen> {
   bool _showSuggestions = false;
   bool _exportVisible = false;
 
-  List<String> _skills = ['Kotlin', 'Android', 'Jetpack Compose', 'Firebase'];
+  late final CvModel _model;
 
-  final _nameCtrl = TextEditingController(text: 'Amina Diallo');
-  final _titleCtrl = TextEditingController(text: 'Développeuse Full-Stack');
-  final _summaryCtrl = TextEditingController(
-    text: "Développeuse passionnée avec 5 ans d'expérience dans la création "
-        "d'applications mobiles et web à fort impact.",
-  );
+  final _nameCtrl = TextEditingController();
+  final _titleCtrl = TextEditingController();
+  final _summaryCtrl = TextEditingController();
+  final _expPositionCtrl = TextEditingController();
+  final _expCompanyCtrl = TextEditingController();
+  final _expStartCtrl = TextEditingController();
+  final _expEndCtrl = TextEditingController();
+  final _expDescCtrl = TextEditingController();
+  final _eduDegreeCtrl = TextEditingController();
+  final _eduSchoolCtrl = TextEditingController();
+  final _eduYearCtrl = TextEditingController();
+
+  List<TextEditingController> get _allCtrls => [
+        _nameCtrl,
+        _titleCtrl,
+        _summaryCtrl,
+        _expPositionCtrl,
+        _expCompanyCtrl,
+        _expStartCtrl,
+        _expEndCtrl,
+        _expDescCtrl,
+        _eduDegreeCtrl,
+        _eduSchoolCtrl,
+        _eduYearCtrl,
+      ];
 
   Timer? _exportTimer;
   Timer? _aiTimer;
@@ -64,22 +86,155 @@ class _EditorScreenState extends State<EditorScreen> {
   @override
   void initState() {
     super.initState();
+    _model = context.read<CvModel>();
+
     _exportTimer = Timer(const Duration(milliseconds: 350), () {
       if (mounted) setState(() => _exportVisible = true);
     });
-    for (final c in [_nameCtrl, _titleCtrl, _summaryCtrl]) {
-      c.addListener(() => setState(() {}));
-    }
+
+    // Les mutations du modèle notifient ses écouteurs : on attend la fin de
+    // la première frame pour ne pas reconstruire pendant le build.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _seedIfEmpty();
+      _loadFromModel();
+      _attachWriteBack();
+    });
   }
 
   @override
   void dispose() {
     _exportTimer?.cancel();
     _aiTimer?.cancel();
-    _nameCtrl.dispose();
-    _titleCtrl.dispose();
-    _summaryCtrl.dispose();
+    for (final c in _allCtrls) {
+      c.dispose();
+    }
     super.dispose();
+  }
+
+  /// Contenu de démonstration du portage Compose — injecté dans le modèle
+  /// seulement s'il est vide, pour que l'éditeur ait de quoi montrer sans
+  /// écraser un CV déjà saisi dans l'assistant.
+  void _seedIfEmpty() {
+    if (_model.cvData.personalInfo.fullName.trim().isEmpty) {
+      _model.updatePersonalInfo(
+        const PersonalInfo(
+          fullName: 'Amina Diallo',
+          jobTitle: 'Développeuse Full-Stack',
+          email: 'amina@example.com',
+          city: 'Paris, France',
+          summary: "Développeuse passionnée avec 5 ans d'expérience dans la "
+              "création d'applications mobiles et web à fort impact.",
+        ),
+      );
+    }
+    if (_model.cvData.experiences.isEmpty) {
+      _model.addExperience(
+        Experience(
+          position: 'Développeuse Full-Stack',
+          company: 'TechCorp SAS',
+          startDate: '2021',
+          endDate: 'Présent',
+          description:
+              "Développement d'applications mobiles Android avec Kotlin et "
+              'Jetpack Compose. Amélioration des performances de 40 %.',
+        ),
+      );
+    }
+    if (_model.cvData.educations.isEmpty) {
+      _model.addEducation(
+        Education(
+          degree: 'Master Informatique',
+          school: 'Université Paris-Saclay',
+          endYear: '2019',
+        ),
+      );
+    }
+    if (_model.cvData.skills.isEmpty) {
+      for (final s in ['Kotlin', 'Android', 'Jetpack Compose', 'Firebase']) {
+        _model.addSkill(Skill(name: s));
+      }
+    }
+  }
+
+  /// Remplit les champs une seule fois. Ensuite le flux est à sens unique
+  /// (champ → modèle) : relire le modèle à chaque frappe replacerait le
+  /// curseur au début du texte.
+  void _loadFromModel() {
+    final info = _model.cvData.personalInfo;
+    _nameCtrl.text = info.fullName;
+    _titleCtrl.text = info.jobTitle;
+    _summaryCtrl.text = info.summary;
+
+    final exp = _model.cvData.experiences.firstOrNull;
+    if (exp != null) {
+      _expPositionCtrl.text = exp.position;
+      _expCompanyCtrl.text = exp.company;
+      _expStartCtrl.text = exp.startDate;
+      _expEndCtrl.text = exp.endDate;
+      _expDescCtrl.text = exp.description;
+    }
+
+    final edu = _model.cvData.educations.firstOrNull;
+    if (edu != null) {
+      _eduDegreeCtrl.text = edu.degree;
+      _eduSchoolCtrl.text = edu.school;
+      _eduYearCtrl.text = edu.endYear;
+    }
+  }
+
+  void _attachWriteBack() {
+    void onProfile() {
+      _model.updatePersonalInfo(
+        _model.cvData.personalInfo.copyWith(
+          fullName: _nameCtrl.text,
+          jobTitle: _titleCtrl.text,
+          summary: _summaryCtrl.text,
+        ),
+      );
+    }
+
+    void onExperience() {
+      final exp = _model.cvData.experiences.firstOrNull;
+      if (exp == null) return;
+      _model.updateExperience(
+        exp.copyWith(
+          position: _expPositionCtrl.text,
+          company: _expCompanyCtrl.text,
+          startDate: _expStartCtrl.text,
+          endDate: _expEndCtrl.text,
+          description: _expDescCtrl.text,
+        ),
+      );
+    }
+
+    void onEducation() {
+      final edu = _model.cvData.educations.firstOrNull;
+      if (edu == null) return;
+      _model.updateEducation(
+        edu.copyWith(
+          degree: _eduDegreeCtrl.text,
+          school: _eduSchoolCtrl.text,
+          endYear: _eduYearCtrl.text,
+        ),
+      );
+    }
+
+    for (final c in [_nameCtrl, _titleCtrl, _summaryCtrl]) {
+      c.addListener(onProfile);
+    }
+    for (final c in [
+      _expPositionCtrl,
+      _expCompanyCtrl,
+      _expStartCtrl,
+      _expEndCtrl,
+      _expDescCtrl,
+    ]) {
+      c.addListener(onExperience);
+    }
+    for (final c in [_eduDegreeCtrl, _eduSchoolCtrl, _eduYearCtrl]) {
+      c.addListener(onEducation);
+    }
   }
 
   /// Le Compose d'origine passait de IDLE à THINKING sans jamais retomber ;
@@ -130,10 +285,7 @@ class _EditorScreenState extends State<EditorScreen> {
                           ? SingleChildScrollView(
                               padding: const EdgeInsets.all(20),
                               child: _PreviewPanel(
-                                name: _nameCtrl.text,
-                                title: _titleCtrl.text,
-                                summary: _summaryCtrl.text,
-                                skills: _skills,
+                                data: context.watch<CvModel>().cvData,
                               ),
                             )
                           : SingleChildScrollView(
@@ -206,19 +358,29 @@ class _EditorScreenState extends State<EditorScreen> {
           onAiReform: _runAi,
         ),
       'Compétences' => _SkillsContent(
-          skills: _skills,
+          skills: context.watch<CvModel>().cvData.skills,
           suggestions: _suggestions,
           showSuggestions: _showSuggestions,
           onToggle: () => setState(() => _showSuggestions = !_showSuggestions),
-          onRemove: (s) => setState(() {
-            _skills = _skills.where((x) => x != s).toList();
-          }),
-          onAdd: (s) => setState(() {
-            if (!_skills.contains(s)) _skills = [..._skills, s];
-          }),
+          onRemove: _model.removeSkill,
+          onAdd: (name) {
+            final exists = _model.cvData.skills
+                .any((s) => s.name.toLowerCase() == name.toLowerCase());
+            if (!exists) _model.addSkill(Skill(name: name));
+          },
         ),
-      'Expérience' => const _ExperienceEditorContent(),
-      'Formation' => const _FormationEditorContent(),
+      'Expérience' => _ExperienceEditorContent(
+          positionCtrl: _expPositionCtrl,
+          companyCtrl: _expCompanyCtrl,
+          startCtrl: _expStartCtrl,
+          endCtrl: _expEndCtrl,
+          descriptionCtrl: _expDescCtrl,
+        ),
+      'Formation' => _FormationEditorContent(
+          degreeCtrl: _eduDegreeCtrl,
+          schoolCtrl: _eduSchoolCtrl,
+          yearCtrl: _eduYearCtrl,
+        ),
       _ => const SizedBox.shrink(),
     };
   }
@@ -634,16 +796,21 @@ class _SkillsContent extends StatelessWidget {
     required this.onAdd,
   });
 
-  final List<String> skills;
+  final List<Skill> skills;
   final List<String> suggestions;
   final bool showSuggestions;
   final VoidCallback onToggle;
+
+  /// Reçoit l'identifiant de la compétence, pas son libellé — deux
+  /// compétences peuvent porter le même nom.
   final ValueChanged<String> onRemove;
   final ValueChanged<String> onAdd;
 
   @override
   Widget build(BuildContext context) {
-    final remaining = suggestions.where((s) => !skills.contains(s)).toList();
+    final names = skills.map((s) => s.name.toLowerCase()).toSet();
+    final remaining =
+        suggestions.where((s) => !names.contains(s.toLowerCase())).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -670,7 +837,7 @@ class _SkillsContent extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      skill,
+                      skill.name,
                       style: const TextStyle(
                         fontSize: 13,
                         color: _eAccent,
@@ -679,7 +846,7 @@ class _SkillsContent extends StatelessWidget {
                     ),
                     const SizedBox(width: 6),
                     GestureDetector(
-                      onTap: () => onRemove(skill),
+                      onTap: () => onRemove(skill.id),
                       child: Text(
                         '×',
                         style: TextStyle(
@@ -774,27 +941,49 @@ class _SkillsContent extends StatelessWidget {
   }
 }
 
-// ── Éditeurs Expérience & Formation (contenus de démonstration) ──────────────
+// ── Éditeurs Expérience & Formation ──────────────────────────────────────────
+//
+// Ces deux blocs éditent la première entrée de `CvModel`. La version Compose
+// affichait des valeurs figées avec un `onValueChange` vide : la saisie était
+// perdue et n'atteignait jamais le PDF.
 
 class _ExperienceEditorContent extends StatelessWidget {
-  const _ExperienceEditorContent();
+  const _ExperienceEditorContent({
+    required this.positionCtrl,
+    required this.companyCtrl,
+    required this.startCtrl,
+    required this.endCtrl,
+    required this.descriptionCtrl,
+  });
+
+  final TextEditingController positionCtrl;
+  final TextEditingController companyCtrl;
+  final TextEditingController startCtrl;
+  final TextEditingController endCtrl;
+  final TextEditingController descriptionCtrl;
 
   @override
   Widget build(BuildContext context) {
-    return const Column(
+    return Column(
       children: [
-        EditorField(label: 'Poste', initialText: 'Développeuse Full-Stack'),
-        SizedBox(height: 12),
-        EditorField(label: 'Entreprise', initialText: 'TechCorp SAS'),
-        SizedBox(height: 12),
-        EditorField(label: 'Période', initialText: '2021 – Présent'),
-        SizedBox(height: 12),
+        EditorField(label: 'Poste', controller: positionCtrl),
+        const SizedBox(height: 12),
+        EditorField(label: 'Entreprise', controller: companyCtrl),
+        const SizedBox(height: 12),
+        // La version Compose n'avait qu'un champ « Période » ; deux champs
+        // distincts sont nécessaires pour alimenter startDate et endDate.
+        Row(
+          children: [
+            Expanded(child: EditorField(label: 'Début', controller: startCtrl)),
+            const SizedBox(width: 12),
+            Expanded(child: EditorField(label: 'Fin', controller: endCtrl)),
+          ],
+        ),
+        const SizedBox(height: 12),
         EditorField(
           label: 'Description',
+          controller: descriptionCtrl,
           maxLines: 4,
-          initialText:
-              "Développement d'applications mobiles Android avec Kotlin et "
-              'Jetpack Compose. Amélioration des performances de 40 %.',
         ),
       ],
     );
@@ -802,70 +991,52 @@ class _ExperienceEditorContent extends StatelessWidget {
 }
 
 class _FormationEditorContent extends StatelessWidget {
-  const _FormationEditorContent();
+  const _FormationEditorContent({
+    required this.degreeCtrl,
+    required this.schoolCtrl,
+    required this.yearCtrl,
+  });
+
+  final TextEditingController degreeCtrl;
+  final TextEditingController schoolCtrl;
+  final TextEditingController yearCtrl;
 
   @override
   Widget build(BuildContext context) {
-    return const Column(
+    return Column(
       children: [
-        EditorField(label: 'Diplôme', initialText: 'Master Informatique'),
-        SizedBox(height: 12),
-        EditorField(
-          label: 'Établissement',
-          initialText: 'Université Paris-Saclay',
-        ),
-        SizedBox(height: 12),
-        EditorField(label: 'Année', initialText: '2019'),
+        EditorField(label: 'Diplôme', controller: degreeCtrl),
+        const SizedBox(height: 12),
+        EditorField(label: 'Établissement', controller: schoolCtrl),
+        const SizedBox(height: 12),
+        EditorField(label: 'Année', controller: yearCtrl),
       ],
     );
   }
 }
 
-/// Champ de saisie de l'éditeur — accepte soit un [controller] piloté par le
-/// parent, soit un simple [initialText] pour les blocs de démonstration.
-class EditorField extends StatefulWidget {
+/// Champ de saisie de l'éditeur. Le contrôleur est toujours fourni par
+/// l'écran, qui se charge de répercuter la saisie dans [CvModel].
+class EditorField extends StatelessWidget {
   const EditorField({
     super.key,
     required this.label,
-    this.controller,
-    this.initialText,
+    required this.controller,
     this.maxLines = 1,
   });
 
   final String label;
-  final TextEditingController? controller;
-  final String? initialText;
+  final TextEditingController controller;
   final int maxLines;
-
-  @override
-  State<EditorField> createState() => _EditorFieldState();
-}
-
-class _EditorFieldState extends State<EditorField> {
-  TextEditingController? _own;
-
-  @override
-  void initState() {
-    super.initState();
-    if (widget.controller == null) {
-      _own = TextEditingController(text: widget.initialText ?? '');
-    }
-  }
-
-  @override
-  void dispose() {
-    _own?.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
     return TextField(
-      controller: widget.controller ?? _own,
-      maxLines: widget.maxLines,
-      minLines: widget.maxLines > 1 ? 3 : 1,
+      controller: controller,
+      maxLines: maxLines,
+      minLines: maxLines > 1 ? 3 : 1,
       decoration: InputDecoration(
-        labelText: widget.label,
+        labelText: label,
         labelStyle: const TextStyle(fontSize: 12),
         fillColor: _eBg.withValues(alpha: 0.50),
         border: OutlineInputBorder(
@@ -1060,20 +1231,18 @@ class _AiDoneToast extends StatelessWidget {
 // ── Panneau d'aperçu ─────────────────────────────────────────────────────────
 
 class _PreviewPanel extends StatelessWidget {
-  const _PreviewPanel({
-    required this.name,
-    required this.title,
-    required this.summary,
-    required this.skills,
-  });
+  const _PreviewPanel({required this.data});
 
-  final String name;
-  final String title;
-  final String summary;
-  final List<String> skills;
+  final CvData data;
 
   @override
   Widget build(BuildContext context) {
+    final info = data.personalInfo;
+    final contact = [
+      if (info.email.trim().isNotEmpty) info.email.trim(),
+      if (info.city.trim().isNotEmpty) info.city.trim(),
+    ].join('  •  ');
+
     return Container(
       decoration: BoxDecoration(
         color: _eCard,
@@ -1091,7 +1260,7 @@ class _PreviewPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            name,
+            info.fullName,
             style: const TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.w800,
@@ -1099,7 +1268,7 @@ class _PreviewPanel extends StatelessWidget {
             ),
           ),
           Text(
-            title,
+            info.jobTitle,
             style: const TextStyle(
               fontSize: 14,
               color: _eAccent,
@@ -1107,7 +1276,7 @@ class _PreviewPanel extends StatelessWidget {
             ),
           ),
           Text(
-            'amina@example.com  •  Paris, France',
+            contact,
             style: TextStyle(
               fontSize: 11,
               color: _eInk.withValues(alpha: 0.42),
@@ -1120,130 +1289,142 @@ class _PreviewPanel extends StatelessWidget {
             color: _eAccent.withValues(alpha: 0.28),
           ),
           const SizedBox(height: 14),
-          const _SectionHeader('Profil'),
-          const SizedBox(height: 6),
-          Text(
-            summary,
-            style: TextStyle(
-              fontSize: 11.5,
-              color: _eInk.withValues(alpha: 0.78),
-              height: 1.48,
+          if (info.summary.trim().isNotEmpty) ...[
+            const _SectionHeader('Profil'),
+            const SizedBox(height: 6),
+            Text(
+              info.summary,
+              style: TextStyle(
+                fontSize: 11.5,
+                color: _eInk.withValues(alpha: 0.78),
+                height: 1.48,
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
-          const _SectionHeader('Expérience'),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'Développeuse Full-Stack',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: _eInk,
-                    ),
-                  ),
-                  Text(
-                    'TechCorp SAS',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: _eInk.withValues(alpha: 0.52),
-                    ),
-                  ),
-                ],
+            const SizedBox(height: 16),
+          ],
+          if (data.experiences.isNotEmpty) ...[
+            const _SectionHeader('Expérience'),
+            const SizedBox(height: 8),
+            for (final exp in data.experiences) ...[
+              _PreviewEntry(
+                title: exp.position,
+                subtitle: exp.company,
+                trailing: exp.period,
               ),
-              Text(
-                '2021 – Présent',
-                style: TextStyle(
-                  fontSize: 10,
-                  color: _eInk.withValues(alpha: 0.38),
+              if (exp.description.trim().isNotEmpty) ...[
+                const SizedBox(height: 5),
+                Text(
+                  exp.description,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: _eInk.withValues(alpha: 0.68),
+                    height: 1.45,
+                  ),
                 ),
-              ),
+              ],
+              const SizedBox(height: 10),
             ],
-          ),
-          const SizedBox(height: 5),
-          Text(
-            'Développement mobile Android avec Kotlin et Jetpack Compose. '
-            'Amélioration des performances de 40 %.',
-            style: TextStyle(
-              fontSize: 11,
-              color: _eInk.withValues(alpha: 0.68),
-              height: 1.45,
+            const SizedBox(height: 6),
+          ],
+          if (data.skills.isNotEmpty) ...[
+            const _SectionHeader('Compétences'),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final s in data.skills)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _eAccent.withValues(alpha: 0.09),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      s.name,
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: _eAccent,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+              ],
             ),
-          ),
-          const SizedBox(height: 16),
-          const _SectionHeader('Compétences'),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              for (final s in skills)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _eAccent.withValues(alpha: 0.09),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    s,
-                    style: const TextStyle(
-                      fontSize: 10,
-                      color: _eAccent,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          const _SectionHeader('Formation'),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'Master Informatique',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: _eInk,
-                    ),
-                  ),
-                  Text(
-                    'Université Paris-Saclay',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: _eInk.withValues(alpha: 0.52),
-                    ),
-                  ),
-                ],
+            const SizedBox(height: 16),
+          ],
+          if (data.educations.isNotEmpty) ...[
+            const _SectionHeader('Formation'),
+            const SizedBox(height: 8),
+            for (final edu in data.educations) ...[
+              _PreviewEntry(
+                title: edu.degree,
+                subtitle: edu.schoolLine,
+                trailing: edu.years,
               ),
-              Text(
-                '2019',
-                style: TextStyle(
-                  fontSize: 10,
-                  color: _eInk.withValues(alpha: 0.38),
-                ),
-              ),
+              const SizedBox(height: 8),
             ],
-          ),
+          ],
         ],
       ),
+    );
+  }
+}
+
+/// Ligne « intitulé / sous-titre / dates » — même forme pour une expérience
+/// et pour une formation.
+class _PreviewEntry extends StatelessWidget {
+  const _PreviewEntry({
+    required this.title,
+    required this.subtitle,
+    required this.trailing,
+  });
+
+  final String title;
+  final String subtitle;
+  final String trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: _eInk,
+                ),
+              ),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: _eInk.withValues(alpha: 0.52),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          trailing,
+          style: TextStyle(
+            fontSize: 10,
+            color: _eInk.withValues(alpha: 0.38),
+          ),
+        ),
+      ],
     );
   }
 }
