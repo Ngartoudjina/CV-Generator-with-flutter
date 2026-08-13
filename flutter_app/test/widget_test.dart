@@ -4,6 +4,7 @@ import 'package:cvgenerator/models/cv_document.dart';
 import 'package:cvgenerator/screens/editor_screen.dart';
 import 'package:cvgenerator/state/cv_library.dart';
 import 'package:cvgenerator/state/cv_model.dart';
+import 'package:cvgenerator/state/cv_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -121,6 +122,65 @@ void main() {
       final before = library.currentId;
       library.open('identifiant-inexistant');
       expect(library.currentId, before);
+    });
+  });
+
+  group('Persistance', () {
+    Future<CvStorage> newStorage() async {
+      SharedPreferences.setMockInitialValues({});
+      return CvStorage(await SharedPreferences.getInstance());
+    }
+
+    test('un aller-retour disque conserve le contenu', () async {
+      final storage = await newStorage();
+      final source = CvLibrary();
+      source.updateCurrent(
+        source.current!.data.copyWith(
+          personalInfo: const PersonalInfo(
+            fullName: 'Fatou Sow',
+            jobTitle: 'Designer',
+            email: 'f@example.com',
+          ),
+        ),
+      );
+
+      await storage.save(source.documents);
+      final restored = CvLibrary(documents: storage.load());
+
+      expect(restored.documents, hasLength(1));
+      final doc = restored.documents.first;
+      expect(doc.data.personalInfo.fullName, 'Fatou Sow');
+      expect(doc.data.skills.map((s) => s.name),
+          source.current!.data.skills.map((s) => s.name));
+      expect(doc.data.experiences.first.isCurrent, isTrue);
+      expect(doc.data.skills.any((s) => s.level == SkillLevel.expert), isTrue);
+      expect(doc.title, source.documents.first.title);
+    });
+
+    test('rien d\'enregistré → exemple ; liste vide → reste vide', () async {
+      final storage = await newStorage();
+
+      // Jamais enregistré : load() renvoie null, l'exemple apparaît.
+      expect(storage.load(), isNull);
+      expect(CvLibrary(documents: storage.load()).documents, hasLength(1));
+
+      // Tout supprimé : la liste vide est respectée, l'exemple ne revient pas.
+      await storage.save([]);
+      expect(storage.load(), isEmpty);
+      expect(CvLibrary(documents: storage.load()).documents, isEmpty);
+    });
+
+    test('un contenu illisible ne fait pas planter le démarrage', () async {
+      SharedPreferences.setMockInitialValues({
+        'cv_documents': '{ ceci n\'est pas du JSON',
+      });
+      final storage = CvStorage(await SharedPreferences.getInstance());
+
+      expect(storage.load(), isEmpty);
+
+      // Le contenu fautif est conservé plutôt que détruit en silence.
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('cv_documents_corrupt'), isNotNull);
     });
   });
 

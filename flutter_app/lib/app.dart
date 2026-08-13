@@ -11,6 +11,7 @@ import 'screens/onboarding/onboarding_flow.dart';
 import 'screens/welcome_screen.dart';
 import 'state/cv_library.dart';
 import 'state/cv_model.dart';
+import 'state/cv_storage.dart';
 import 'theme/app_theme.dart';
 import 'utils/pdf_export.dart';
 
@@ -64,8 +65,13 @@ class CvGeneratorApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        // Le magasin des CV enregistrés…
-        ChangeNotifierProvider(create: (_) => CvLibrary()),
+        // Le magasin des CV enregistrés, restauré depuis le disque.
+        // `load()` renvoie null au tout premier lancement, ce qui laisse
+        // CvLibrary poser son exemple de départ ; une liste vide signifie
+        // que l'utilisateur a tout supprimé et l'exemple ne revient pas.
+        ChangeNotifierProvider(
+          create: (_) => CvLibrary(documents: CvStorage(prefs).load()),
+        ),
         // …et la copie de travail éditée par l'assistant et l'éditeur.
         ChangeNotifierProvider(create: (_) => CvModel()),
       ],
@@ -89,10 +95,12 @@ class AppNavigator extends StatefulWidget {
   State<AppNavigator> createState() => _AppNavigatorState();
 }
 
-class _AppNavigatorState extends State<AppNavigator> {
+class _AppNavigatorState extends State<AppNavigator>
+    with WidgetsBindingObserver {
   late AppScreen _screen;
   late final CvModel _model;
   late final CvLibrary _library;
+  late final DebouncedSaver _saver;
 
   @override
   void initState() {
@@ -108,13 +116,35 @@ class _AppNavigatorState extends State<AppNavigator> {
 
     _model = context.read<CvModel>();
     _library = context.read<CvLibrary>();
+
+    _saver = DebouncedSaver(
+      storage: CvStorage(widget.prefs),
+      documents: () => _library.documents,
+    );
+
     _model.addListener(_syncToLibrary);
+    _library.addListener(_saver.schedule);
+    WidgetsBinding.instance.addObserver(this);
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _model.removeListener(_syncToLibrary);
+    _library.removeListener(_saver.schedule);
+    _saver.dispose();
     super.dispose();
+  }
+
+  /// Une saisie en cours au moment où l'application passe en arrière-plan ne
+  /// doit pas attendre la fin du délai d'écriture : le système peut tuer le
+  /// processus avant.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      _saver.flush();
+    }
   }
 
   /// Toute modification de la copie de travail est enregistrée dans le
