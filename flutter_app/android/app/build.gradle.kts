@@ -7,7 +7,18 @@ plugins {
 android {
     namespace = "com.cvgenerator"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+
+    // `ndkVersion` n'est pas déclaré ici, mais cela ne dispense PAS d'installer
+    // le NDK : le plugin Gradle de Flutter impose sa propre valeur par défaut
+    // (28.2.13676358, définie dans FlutterExtension.kt du SDK). Le plugin
+    // Android Gradle valide alors cette version et tente de la télécharger.
+    //
+    // Le NDK doit donc être installé, même sans code natif dans le projet :
+    //   SDK Manager → SDK Tools → NDK (Side by side) → 28.2.13676358
+    //
+    // Pour épingler une autre version déjà présente sur la machine, ajouter
+    // ici `ndkVersion = "<version installée>"` : la déclaration explicite prend
+    // le pas sur le défaut de Flutter.
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
