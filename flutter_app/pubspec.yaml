@@ -1,0 +1,36 @@
+name: cvgenerator
+description: "CV Generator — votre parcours, sublimé par l'intelligence artificielle."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  # Flutter >= 3.27 requis : le code utilise Color.withValues(alpha:),
+  # introduit avec Dart 3.6 / Flutter 3.27 (remplace withOpacity, déprécié).
+  sdk: ^3.6.0
+  flutter: '>=3.27.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State management — remplace CvViewModel / StateFlow
+  provider: ^6.1.2
+
+  # Remplace SharedPreferences (Android) — même API des deux côtés
+  shared_preferences: ^2.3.2
+
+  # Génération PDF — remplace android.graphics.pdf.PdfDocument
+  pdf: ^3.11.1
+  printing: ^5.13.2
+  path_provider: ^2.1.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/

@@ -1,0 +1,48 @@
+# ── Android / Gradle ────────────────────────────────────────
+/build/
+/app/build/
+/.gradle/
+/.kotlin/
+captures/
+*.iml
+.cxx/
+
+# Contient des chemins absolus propres à la machine (le fichier le dit
+# lui-même en en-tête) — ne doit jamais être versionné.
+local.properties
+
+# ── Signature Android — ne jamais committer ─────────────────
+*.jks
+*.keystore
+keystore.properties
+
+# ── IDE ─────────────────────────────────────────────────────
+/.idea/
+.vscode/
+*.swp
+
+# ── Flutter / Dart ──────────────────────────────────────────
+flutter_app/build/
+flutter_app/.dart_tool/
+flutter_app/.flutter-plugins
+flutter_app/.flutter-plugins-dependencies
+flutter_app/.packages
+flutter_app/.pub-cache/
+flutter_app/.pub/
+flutter_app/pubspec.lock
+flutter_app/android/.gradle/
+flutter_app/android/local.properties
+flutter_app/ios/Pods/
+flutter_app/ios/.symlinks/
+flutter_app/ios/Flutter/Flutter.framework
+flutter_app/ios/Flutter/Flutter.podspec
+flutter_app/ios/Flutter/ephemeral/
+**/Generated.xcconfig
+**/flutter_export_environment.sh
+
+# ── Système ─────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# Réglages Claude Code propres à la machine
+.claude/settings.local.json

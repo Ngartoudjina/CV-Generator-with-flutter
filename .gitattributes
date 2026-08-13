@@ -1,0 +1,8 @@
+# Normalise les fins de ligne : LF dans le dépôt, natif dans la copie de travail.
+# Nécessaire ici — le projet est édité sous Windows mais iOS se construit sous macOS.
+* text=auto eol=lf
+
+*.png binary
+*.jar binary
+*.keystore binary
+*.jks binary
