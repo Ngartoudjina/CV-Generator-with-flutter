@@ -1,6 +1,8 @@
 import 'package:cvgenerator/app.dart';
 import 'package:cvgenerator/models/cv_data.dart';
+import 'package:cvgenerator/models/cv_document.dart';
 import 'package:cvgenerator/screens/editor_screen.dart';
+import 'package:cvgenerator/state/cv_library.dart';
 import 'package:cvgenerator/state/cv_model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -50,22 +52,21 @@ void main() {
   group('EditorScreen ↔ CvModel', () {
     testWidgets('la saisie atteint le modèle, donc le PDF exporté',
         (tester) async {
-      final model = CvModel();
+      final library = CvLibrary();
+      final model = CvModel()..load(library.current!.data);
 
       await tester.pumpWidget(
-        ChangeNotifierProvider<CvModel>.value(
-          value: model,
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<CvLibrary>.value(value: library),
+            ChangeNotifierProvider<CvModel>.value(value: model),
+          ],
           child: MaterialApp(
             home: EditorScreen(onBack: () {}, onExport: () {}),
           ),
         ),
       );
       await tester.pump(const Duration(milliseconds: 600));
-
-      // L'écran amorce le modèle au lieu de garder son état pour lui.
-      expect(model.cvData.personalInfo.fullName, isNotEmpty);
-      expect(model.cvData.experiences, isNotEmpty);
-      expect(model.cvData.skills, isNotEmpty);
 
       // Une frappe dans « Nom complet » doit se retrouver dans le modèle —
       // c'est exactement ce que la version Compose perdait.
@@ -76,6 +77,90 @@ void main() {
       await tester.pump();
 
       expect(model.cvData.personalInfo.fullName, 'Fatou Sow');
+    });
+  });
+
+  group('CvLibrary', () {
+    test('démarre avec un exemple modifiable et supprimable', () {
+      final library = CvLibrary();
+      expect(library.documents, hasLength(1));
+      expect(library.current, isNotNull);
+
+      library.remove(library.current!.id);
+      expect(library.documents, isEmpty);
+      expect(library.current, isNull);
+    });
+
+    test('createNew ajoute un document vierge et le rend courant', () {
+      final library = CvLibrary();
+      final id = library.createNew();
+
+      expect(library.documents, hasLength(2));
+      expect(library.currentId, id);
+      expect(library.current!.data.personalInfo.fullName, isEmpty);
+      expect(library.current!.isDraft, isTrue, reason: 'vide donc brouillon');
+    });
+
+    test('updateCurrent enregistre dans le document courant seulement', () {
+      final library = CvLibrary();
+      final firstId = library.documents.first.id;
+      library.createNew();
+
+      library.updateCurrent(
+        const CvData(personalInfo: PersonalInfo(fullName: 'Fatou Sow')),
+      );
+
+      final updated = library.documents.firstWhere((d) => d.id != firstId);
+      final untouched = library.documents.firstWhere((d) => d.id == firstId);
+      expect(updated.data.personalInfo.fullName, 'Fatou Sow');
+      expect(untouched.data.personalInfo.fullName, 'Amina Diallo');
+    });
+
+    test('open ignore un identifiant inconnu', () {
+      final library = CvLibrary();
+      final before = library.currentId;
+      library.open('identifiant-inexistant');
+      expect(library.currentId, before);
+    });
+  });
+
+  group('Score de complétude', () {
+    test('un CV vide vaut 0, un CV complet dépasse le seuil de brouillon', () {
+      final vide = CvDocument(
+        title: 'Vide',
+        data: const CvData(),
+        updatedAt: DateTime.now(),
+      );
+      expect(vide.score, 0);
+      expect(vide.isDraft, isTrue);
+
+      final complet = CvLibrary().current!;
+      expect(complet.score, greaterThanOrEqualTo(70));
+      expect(complet.isDraft, isFalse);
+    });
+
+    test('le score progresse avec le contenu ajouté', () {
+      CvDocument doc(CvData d) =>
+          CvDocument(title: 't', data: d, updatedAt: DateTime.now());
+
+      final identite = doc(
+        const CvData(
+          personalInfo: PersonalInfo(
+            fullName: 'Fatou Sow',
+            jobTitle: 'Designer',
+            email: 'f@example.com',
+          ),
+        ),
+      );
+      final avecCompetences = doc(
+        CvData(
+          personalInfo: identite.data.personalInfo,
+          skills: [Skill(name: 'Figma'), Skill(name: 'Sketch')],
+        ),
+      );
+
+      expect(avecCompetences.score, greaterThan(identite.score));
+      expect(identite.score, lessThan(70));
     });
   });
 

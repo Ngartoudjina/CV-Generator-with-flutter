@@ -1,7 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../models/cv_document.dart';
+import '../state/cv_library.dart';
 import '../theme/colors.dart';
 import '../utils/anim.dart';
 import '../widgets/score_ring.dart';
@@ -15,49 +18,6 @@ const Color _dDark = Color(0xFF0D0920);
 const Color _dDarkMid = Color(0xFF180C30);
 const Color _dWhite = Color(0xFFEFEBFF);
 
-class CvItem {
-  const CvItem({
-    required this.id,
-    required this.title,
-    required this.role,
-    required this.edited,
-    required this.score,
-    this.isDraft = false,
-  });
-
-  final int id;
-  final String title;
-  final String role;
-  final String edited;
-  final int score;
-  final bool isDraft;
-}
-
-const List<CvItem> sampleCvs = [
-  CvItem(
-    id: 1,
-    title: 'CV Senior Dev',
-    role: 'Développeur Full-Stack',
-    edited: 'Il y a 2h',
-    score: 92,
-  ),
-  CvItem(
-    id: 2,
-    title: 'CV UX/Produit',
-    role: 'Product Designer',
-    edited: 'Hier',
-    score: 78,
-    isDraft: true,
-  ),
-  CvItem(
-    id: 3,
-    title: 'CV Tech Lead',
-    role: 'Engineering Manager',
-    edited: 'Il y a 3j',
-    score: 85,
-  ),
-];
-
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({
     super.key,
@@ -66,7 +26,9 @@ class DashboardScreen extends StatefulWidget {
     required this.onProfile,
   });
 
-  final ValueChanged<int> onOpenEditor;
+  /// Reçoit l'identifiant du document — la version Kotlin passait un `Int`
+  /// d'une liste figée.
+  final ValueChanged<String> onOpenEditor;
   final VoidCallback onCreateNew;
   final VoidCallback onProfile;
 
@@ -96,14 +58,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.dispose();
   }
 
-  List<CvItem> get _filtered => switch (_activeFilter) {
-        'Finalisés' => sampleCvs.where((c) => !c.isDraft).toList(),
-        'Brouillons' => sampleCvs.where((c) => c.isDraft).toList(),
-        _ => sampleCvs,
+  List<CvDocument> _filtered(List<CvDocument> all) => switch (_activeFilter) {
+        'Finalisés' => all.where((c) => !c.isDraft).toList(),
+        'Brouillons' => all.where((c) => c.isDraft).toList(),
+        _ => all,
       };
 
   @override
   Widget build(BuildContext context) {
+    final library = context.watch<CvLibrary>();
+    final documents = library.sortedByDate;
+    final filtered = _filtered(documents);
+
     return Scaffold(
       backgroundColor: _dBg,
       body: StaggerBuilder(
@@ -121,6 +87,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     fromY: -28,
                     child: _DarkHeader(
                       statsVisible: _statsVisible,
+                      documents: documents,
                       onProfile: widget.onProfile,
                     ),
                   ),
@@ -156,25 +123,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       fromY: 20,
                       child: ListView.separated(
                         padding: const EdgeInsets.symmetric(horizontal: 20),
-                        itemCount: _filtered.length + 1,
+                        itemCount: filtered.length + 1,
                         separatorBuilder: (_, __) => const SizedBox(height: 12),
                         itemBuilder: (context, index) {
-                          if (index == _filtered.length) {
+                          if (index == filtered.length) {
                             return Padding(
                               padding: const EdgeInsets.only(
                                 top: 4,
                                 bottom: 100,
                               ),
-                              child: _CreateNewCard(
-                                onTap: widget.onCreateNew,
+                              child: Column(
+                                children: [
+                                  if (filtered.isEmpty)
+                                    _EmptyState(filter: _activeFilter),
+                                  _CreateNewCard(onTap: widget.onCreateNew),
+                                ],
                               ),
                             );
                           }
-                          final cv = _filtered[index];
+                          final cv = filtered[index];
                           return _StaggeredCvCard(
                             index: index,
                             cv: cv,
                             onTap: () => widget.onOpenEditor(cv.id),
+                            onDelete: () =>
+                                context.read<CvLibrary>().remove(cv.id),
                           );
                         },
                       ),
@@ -203,14 +176,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
 // ── En-tête sombre avec statistiques ─────────────────────────────────────────
 
 class _DarkHeader extends StatelessWidget {
-  const _DarkHeader({required this.statsVisible, required this.onProfile});
+  const _DarkHeader({
+    required this.statsVisible,
+    required this.documents,
+    required this.onProfile,
+  });
 
   final bool statsVisible;
+  final List<CvDocument> documents;
   final VoidCallback onProfile;
 
   @override
   Widget build(BuildContext context) {
     final topPad = MediaQuery.of(context).padding.top;
+
+    // Statistiques calculées, là où la version Kotlin animait 3 / 92 / 1 en dur.
+    final bestScore = documents.isEmpty
+        ? 0
+        : documents.map((d) => d.score).reduce((a, b) => a > b ? a : b);
+    final drafts = documents.where((d) => d.isDraft).length;
+
+    // Le nom affiché suit le CV le plus récent plutôt qu'un « Amina Diallo »
+    // codé en dur.
+    final owner = documents
+        .map((d) => d.data.personalInfo.fullName.trim())
+        .firstWhere((n) => n.isNotEmpty, orElse: () => 'Bienvenue');
+    final initials = owner
+        .split(RegExp(r'\s+'))
+        .where((w) => w.isNotEmpty)
+        .take(2)
+        .map((w) => w[0].toUpperCase())
+        .join();
 
     return DecoratedBox(
       decoration: const BoxDecoration(
@@ -250,9 +246,9 @@ class _DarkHeader extends StatelessWidget {
                         color: _dWhite.withValues(alpha: 0.55),
                       ),
                     ),
-                    const Text(
-                      'Amina Diallo',
-                      style: TextStyle(
+                    Text(
+                      owner,
+                      style: const TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.w800,
                         color: _dWhite,
@@ -275,9 +271,9 @@ class _DarkHeader extends StatelessWidget {
                         width: 2,
                       ),
                     ),
-                    child: const Text(
-                      'AD',
-                      style: TextStyle(
+                    child: Text(
+                      initials.isEmpty ? '?' : initials,
+                      style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w800,
                         color: Colors.white,
@@ -292,7 +288,7 @@ class _DarkHeader extends StatelessWidget {
               children: [
                 Expanded(
                   child: _DarkStatChip(
-                    value: statsVisible ? 3 : 0,
+                    value: statsVisible ? documents.length : 0,
                     label: 'CV actifs',
                     duration: const Duration(milliseconds: 700),
                   ),
@@ -300,7 +296,7 @@ class _DarkHeader extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: _DarkStatChip(
-                    value: statsVisible ? 92 : 0,
+                    value: statsVisible ? bestScore : 0,
                     label: 'Meilleur score',
                     highlight: true,
                     duration: const Duration(milliseconds: 1200),
@@ -309,8 +305,8 @@ class _DarkHeader extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: _DarkStatChip(
-                    value: statsVisible ? 1 : 0,
-                    label: 'Brouillon',
+                    value: statsVisible ? drafts : 0,
+                    label: drafts > 1 ? 'Brouillons' : 'Brouillon',
                     duration: const Duration(milliseconds: 500),
                   ),
                 ),
@@ -443,11 +439,13 @@ class _StaggeredCvCard extends StatefulWidget {
     required this.index,
     required this.cv,
     required this.onTap,
+    required this.onDelete,
   });
 
   final int index;
-  final CvItem cv;
+  final CvDocument cv;
   final VoidCallback onTap;
+  final VoidCallback onDelete;
 
   @override
   State<_StaggeredCvCard> createState() => _StaggeredCvCardState();
@@ -477,16 +475,25 @@ class _StaggeredCvCardState extends State<_StaggeredCvCard> {
       visible: _visible,
       fromY: 32,
       fromScale: 0.94,
-      child: _CvCard(cv: widget.cv, onTap: widget.onTap),
+      child: _CvCard(
+        cv: widget.cv,
+        onTap: widget.onTap,
+        onDelete: widget.onDelete,
+      ),
     );
   }
 }
 
 class _CvCard extends StatelessWidget {
-  const _CvCard({required this.cv, required this.onTap});
+  const _CvCard({
+    required this.cv,
+    required this.onTap,
+    required this.onDelete,
+  });
 
-  final CvItem cv;
+  final CvDocument cv;
   final VoidCallback onTap;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -568,7 +575,7 @@ class _CvCard extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    cv.edited,
+                    cv.editedLabel,
                     style: TextStyle(
                       fontSize: 11,
                       color: _dInk.withValues(alpha: 0.32),
@@ -579,7 +586,81 @@ class _CvCard extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             ScoreRingSmall(score: cv.score),
+            _DeleteButton(title: cv.title, onConfirm: onDelete),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Suppression avec confirmation — un CV effacé par erreur n'est pas
+/// récupérable, la bibliothèque ne gardant pas d'historique.
+class _DeleteButton extends StatelessWidget {
+  const _DeleteButton({required this.title, required this.onConfirm});
+
+  final String title;
+  final VoidCallback onConfirm;
+
+  Future<void> _confirm(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Supprimer ce CV ?'),
+        content: Text('« $title » sera définitivement effacé.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Annuler'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.errorRed),
+            child: const Text('Supprimer'),
+          ),
+        ],
+      ),
+    );
+    if (ok ?? false) onConfirm();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      onPressed: () => _confirm(context),
+      tooltip: 'Supprimer',
+      iconSize: 18,
+      visualDensity: VisualDensity.compact,
+      icon: Icon(
+        Icons.delete_outline,
+        color: _dInk.withValues(alpha: 0.30),
+      ),
+    );
+  }
+}
+
+/// Affiché quand un filtre ne renvoie aucun CV.
+class _EmptyState extends StatelessWidget {
+  const _EmptyState({required this.filter});
+
+  final String filter;
+
+  @override
+  Widget build(BuildContext context) {
+    final message = switch (filter) {
+      'Finalisés' => 'Aucun CV finalisé pour l\'instant.',
+      'Brouillons' => 'Aucun brouillon — tout est finalisé.',
+      _ => 'Aucun CV. Créez le premier ci-dessous.',
+    };
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16, top: 24),
+      child: Text(
+        message,
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontSize: 13,
+          color: _dInk.withValues(alpha: 0.42),
         ),
       ),
     );

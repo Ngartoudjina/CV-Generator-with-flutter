@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'models/cv_data.dart';
 import 'screens/auth_screen.dart';
 import 'screens/cv_wizard_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/editor_screen.dart';
 import 'screens/onboarding/onboarding_flow.dart';
 import 'screens/welcome_screen.dart';
+import 'state/cv_library.dart';
 import 'state/cv_model.dart';
 import 'theme/app_theme.dart';
 import 'utils/pdf_export.dart';
@@ -43,7 +45,9 @@ class WizardRoute extends AppScreen {
 class EditorRoute extends AppScreen {
   const EditorRoute(this.cvId);
 
-  final int cvId;
+  /// Identifiant du document dans [CvLibrary] — la version Kotlin passait un
+  /// `Int` provenant d'une liste figée.
+  final String cvId;
 }
 
 /// Clés SharedPreferences — identiques à celles de la version Android
@@ -58,8 +62,13 @@ class CvGeneratorApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => CvModel(),
+    return MultiProvider(
+      providers: [
+        // Le magasin des CV enregistrés…
+        ChangeNotifierProvider(create: (_) => CvLibrary()),
+        // …et la copie de travail éditée par l'assistant et l'éditeur.
+        ChangeNotifierProvider(create: (_) => CvModel()),
+      ],
       child: MaterialApp(
         title: 'CV Generator',
         debugShowCheckedModeBanner: false,
@@ -82,6 +91,8 @@ class AppNavigator extends StatefulWidget {
 
 class _AppNavigatorState extends State<AppNavigator> {
   late AppScreen _screen;
+  late final CvModel _model;
+  late final CvLibrary _library;
 
   @override
   void initState() {
@@ -94,9 +105,40 @@ class _AppNavigatorState extends State<AppNavigator> {
       (true, false) => const AuthRoute(),
       (true, true) => const DashboardRoute(),
     };
+
+    _model = context.read<CvModel>();
+    _library = context.read<CvLibrary>();
+    _model.addListener(_syncToLibrary);
   }
 
+  @override
+  void dispose() {
+    _model.removeListener(_syncToLibrary);
+    super.dispose();
+  }
+
+  /// Toute modification de la copie de travail est enregistrée dans le
+  /// document courant de la bibliothèque. C'est le seul point de couplage
+  /// entre les deux : les écrans n'ont pas à y penser.
+  void _syncToLibrary() => _library.updateCurrent(_model.cvData);
+
   void _go(AppScreen next) => setState(() => _screen = next);
+
+  /// Ouvre un CV enregistré : on le désigne comme courant, puis on charge son
+  /// contenu dans la copie de travail.
+  void _openDocument(String id) {
+    _library.open(id);
+    final doc = _library.current;
+    if (doc != null) _model.load(doc.data);
+    _go(EditorRoute(id));
+  }
+
+  /// Crée un CV vierge et ouvre l'assistant dessus.
+  void _createDocument() {
+    _library.createNew();
+    _model.load(const CvData());
+    _go(const WizardRoute());
+  }
 
   /// Port de `MainActivity.exportPdf()` — l'implémentation vit dans
   /// [exportCvPdf], partagée avec l'assistant.
@@ -129,8 +171,8 @@ class _AppNavigatorState extends State<AppNavigator> {
         ),
       DashboardRoute() => DashboardScreen(
           // Ouvrir un CV existant → éditeur ; en créer un → assistant.
-          onOpenEditor: (cvId) => _go(EditorRoute(cvId)),
-          onCreateNew: () => _go(const WizardRoute()),
+          onOpenEditor: _openDocument,
+          onCreateNew: _createDocument,
           onProfile: () {},
         ),
       WizardRoute() => CvWizardScreen(

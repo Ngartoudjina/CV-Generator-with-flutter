@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/cv_data.dart';
+import '../state/cv_library.dart';
 import '../state/cv_model.dart';
 import '../theme/colors.dart';
 import '../utils/anim.dart';
@@ -23,12 +24,13 @@ enum AiState { idle, thinking, done }
 class EditorScreen extends StatefulWidget {
   const EditorScreen({
     super.key,
-    this.cvId = 1,
+    this.cvId,
     required this.onBack,
     required this.onExport,
   });
 
-  final int cvId;
+  /// Identifiant du document ouvert, utilisé pour afficher son titre.
+  final String? cvId;
   final VoidCallback onBack;
   final VoidCallback onExport;
 
@@ -96,7 +98,6 @@ class _EditorScreenState extends State<EditorScreen> {
     // la première frame pour ne pas reconstruire pendant le build.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _seedIfEmpty();
       _loadFromModel();
       _attachWriteBack();
     });
@@ -110,51 +111,6 @@ class _EditorScreenState extends State<EditorScreen> {
       c.dispose();
     }
     super.dispose();
-  }
-
-  /// Contenu de démonstration du portage Compose — injecté dans le modèle
-  /// seulement s'il est vide, pour que l'éditeur ait de quoi montrer sans
-  /// écraser un CV déjà saisi dans l'assistant.
-  void _seedIfEmpty() {
-    if (_model.cvData.personalInfo.fullName.trim().isEmpty) {
-      _model.updatePersonalInfo(
-        const PersonalInfo(
-          fullName: 'Amina Diallo',
-          jobTitle: 'Développeuse Full-Stack',
-          email: 'amina@example.com',
-          city: 'Paris, France',
-          summary: "Développeuse passionnée avec 5 ans d'expérience dans la "
-              "création d'applications mobiles et web à fort impact.",
-        ),
-      );
-    }
-    if (_model.cvData.experiences.isEmpty) {
-      _model.addExperience(
-        Experience(
-          position: 'Développeuse Full-Stack',
-          company: 'TechCorp SAS',
-          startDate: '2021',
-          endDate: 'Présent',
-          description:
-              "Développement d'applications mobiles Android avec Kotlin et "
-              'Jetpack Compose. Amélioration des performances de 40 %.',
-        ),
-      );
-    }
-    if (_model.cvData.educations.isEmpty) {
-      _model.addEducation(
-        Education(
-          degree: 'Master Informatique',
-          school: 'Université Paris-Saclay',
-          endYear: '2019',
-        ),
-      );
-    }
-    if (_model.cvData.skills.isEmpty) {
-      for (final s in ['Kotlin', 'Android', 'Jetpack Compose', 'Firebase']) {
-        _model.addSkill(Skill(name: s));
-      }
-    }
   }
 
   /// Remplit les champs une seule fois. Ensuite le flux est à sens unique
@@ -194,9 +150,26 @@ class _EditorScreenState extends State<EditorScreen> {
       );
     }
 
+    // Sur un CV vierge, la première frappe crée l'entrée au lieu d'être
+    // ignorée — c'est le cas quand on ouvre un CV créé depuis le tableau
+    // de bord.
     void onExperience() {
       final exp = _model.cvData.experiences.firstOrNull;
-      if (exp == null) return;
+      if (exp == null) {
+        if (_expPositionCtrl.text.isEmpty && _expCompanyCtrl.text.isEmpty) {
+          return;
+        }
+        _model.addExperience(
+          Experience(
+            position: _expPositionCtrl.text,
+            company: _expCompanyCtrl.text,
+            startDate: _expStartCtrl.text,
+            endDate: _expEndCtrl.text,
+            description: _expDescCtrl.text,
+          ),
+        );
+        return;
+      }
       _model.updateExperience(
         exp.copyWith(
           position: _expPositionCtrl.text,
@@ -210,7 +183,17 @@ class _EditorScreenState extends State<EditorScreen> {
 
     void onEducation() {
       final edu = _model.cvData.educations.firstOrNull;
-      if (edu == null) return;
+      if (edu == null) {
+        if (_eduDegreeCtrl.text.isEmpty && _eduSchoolCtrl.text.isEmpty) return;
+        _model.addEducation(
+          Education(
+            degree: _eduDegreeCtrl.text,
+            school: _eduSchoolCtrl.text,
+            endYear: _eduYearCtrl.text,
+          ),
+        );
+        return;
+      }
       _model.updateEducation(
         edu.copyWith(
           degree: _eduDegreeCtrl.text,
@@ -271,6 +254,9 @@ class _EditorScreenState extends State<EditorScreen> {
                     child: _DarkHeader(
                       headerVisible: vis[1],
                       isPreview: _isPreview,
+                      title: context.watch<CvLibrary>().current?.title ??
+                          'Nouveau CV',
+                      score: context.watch<CvLibrary>().current?.score ?? 0,
                       onBack: widget.onBack,
                       onModeChange: (p) => setState(() => _isPreview = p),
                     ),
@@ -325,7 +311,10 @@ class _EditorScreenState extends State<EditorScreen> {
                 left: 0,
                 right: 0,
                 bottom: _exportVisible ? 0 : -100,
-                child: _ExportBar(onExport: widget.onExport),
+                child: _ExportBar(
+                  score: context.watch<CvLibrary>().current?.score ?? 0,
+                  onExport: widget.onExport,
+                ),
               ),
 
               // ── Toast « IA terminée » ────────────────────
@@ -391,12 +380,16 @@ class _EditorScreenState extends State<EditorScreen> {
 class _DarkHeader extends StatelessWidget {
   const _DarkHeader({
     required this.headerVisible,
+    required this.title,
+    required this.score,
     required this.isPreview,
     required this.onBack,
     required this.onModeChange,
   });
 
   final bool headerVisible;
+  final String title;
+  final int score;
   final bool isPreview;
   final VoidCallback onBack;
   final ValueChanged<bool> onModeChange;
@@ -456,19 +449,23 @@ class _DarkHeader extends StatelessWidget {
                             fit: BoxFit.contain,
                           ),
                           const SizedBox(width: 8),
-                          const Text(
-                            'CV Senior Dev',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: _eWhite,
+                          Flexible(
+                            child: Text(
+                              title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: _eWhite,
+                              ),
                             ),
                           ),
                         ],
                       ),
                     ),
                   ),
-                  const ScoreRingSmall(score: 92, size: 40),
+                  ScoreRingSmall(score: score, size: 40),
                 ],
               ),
             ),
@@ -1059,7 +1056,9 @@ class EditorField extends StatelessWidget {
 // ── Barre d'export ───────────────────────────────────────────────────────────
 
 class _ExportBar extends StatelessWidget {
-  const _ExportBar({required this.onExport});
+  const _ExportBar({required this.score, required this.onExport});
+
+  final int score;
 
   final VoidCallback onExport;
 
@@ -1099,10 +1098,10 @@ class _ExportBar extends StatelessWidget {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        const GradientText(
-                          '92',
+                        GradientText(
+                          '$score',
                           gradient: AppColors.accentCoGradient,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.w800,
                           ),

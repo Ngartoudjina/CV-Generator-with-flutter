@@ -21,6 +21,14 @@ class CvModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Charge un CV existant dans la copie de travail — appelé quand on ouvre
+  /// un document depuis le tableau de bord.
+  void load(CvData data) {
+    _cvData = data;
+    _currentStep = 0;
+    notifyListeners();
+  }
+
   // ── Informations personnelles ──────────────────────────────
   void updatePersonalInfo(PersonalInfo info) {
     _update(_cvData.copyWith(personalInfo: info));
