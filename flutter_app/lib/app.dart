@@ -170,6 +170,22 @@ class _AppNavigatorState extends State<AppNavigator>
     _go(const WizardRoute());
   }
 
+  /// Déconnexion — les CV restent sur l'appareil, seul le drapeau de session
+  /// est effacé. L'écran d'authentification ne vérifie rien pour l'instant,
+  /// c'est donc surtout un retour au point d'entrée.
+  Future<void> _signOut() async {
+    await _saver.flush();
+    await widget.prefs.setBool(kLoggedIn, false);
+    if (mounted) _go(const AuthRoute());
+  }
+
+  /// Rejoue la présentation, comme au premier lancement.
+  Future<void> _replayOnboarding() async {
+    await _saver.flush();
+    await widget.prefs.setBool(kOnboardingDone, false);
+    if (mounted) _go(const OnboardingRoute());
+  }
+
   /// Port de `MainActivity.exportPdf()` — l'implémentation vit dans
   /// [exportCvPdf], partagée avec l'assistant.
   Future<void> _exportPdf() =>
@@ -203,7 +219,8 @@ class _AppNavigatorState extends State<AppNavigator>
           // Ouvrir un CV existant → éditeur ; en créer un → assistant.
           onOpenEditor: _openDocument,
           onCreateNew: _createDocument,
-          onProfile: () {},
+          onSignOut: _signOut,
+          onReplayOnboarding: _replayOnboarding,
         ),
       WizardRoute() => CvWizardScreen(
           onBack: () => _go(const DashboardRoute()),

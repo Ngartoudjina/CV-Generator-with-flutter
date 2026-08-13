@@ -9,7 +9,7 @@ en dehors de ce dossier.
 Portage complet et **vérifié** avec Flutter 3.44.9 / Dart 3.12.2 :
 
 - `flutter analyze` — aucune remontée
-- `flutter test` — 10 tests au vert
+- `flutter test` — 21 tests au vert
 - Plateformes générées : `android/`, `ios/`, `web/`
 
 ## Démarrer
@@ -81,6 +81,36 @@ d'exécution.
 | `SharedPreferences` | `shared_preferences` (asynchrone) |
 | `android.graphics.pdf.PdfDocument` | package `pdf` (par widgets) |
 | `FileProvider` + `Intent.ACTION_VIEW` | `Printing.sharePdf` |
+
+## Ce qui va au-delà du portage
+
+Trois zones de la maquette Kotlin étaient inertes ; elles sont désormais
+fonctionnelles.
+
+**Bibliothèque de CV** — `DashboardScreen.kt` listait une constante
+`sampleCvs` figée, avec des scores écrits en dur. [CvLibrary](lib/state/cv_library.dart)
+la remplace : les CV sont réels, modifiables, supprimables.
+[CvModel](lib/state/cv_model.dart) reste la copie de travail, et `AppNavigator`
+est le seul point de couplage entre les deux.
+
+**Score calculé** — une heuristique de complétude documentée dans
+[CvDocument](lib/models/cv_document.dart) (identité, résumé, expériences
+décrites, formation, compétences, langues). **Ce n'est pas une analyse ATS** :
+c'est le point d'accroche prévu pour l'IA promise par l'onboarding. Mais c'est
+honnête, là où « 92 » était inventé. Un CV sous 70 est un brouillon.
+
+**Persistance** — le projet Kotlin ne persistait rien.
+[CvStorage](lib/state/cv_storage.dart) sérialise la bibliothèque en JSON dans
+`SharedPreferences`, avec écritures regroupées sur 600 ms et vidage forcé au
+passage en arrière-plan. Trois cas distincts : rien d'enregistré (l'exemple
+apparaît), liste vide (l'utilisateur a tout supprimé, l'exemple ne revient
+pas), contenu illisible (mis de côté, jamais écrasé).
+
+**Onglets** — l'onglet Profil existe pour de bon
+([profile_screen.dart](lib/screens/profile_screen.dart)) : identité dérivée
+des CV, statistiques, déconnexion, rejeu de l'introduction. Modèles et IA
+affichent explicitement ce qui manque plutôt que de rester muets — un onglet
+sans réaction se lit comme un bug.
 
 ## Points d'attention
 

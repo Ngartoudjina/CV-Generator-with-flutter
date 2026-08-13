@@ -8,6 +8,7 @@ import '../state/cv_library.dart';
 import '../theme/colors.dart';
 import '../utils/anim.dart';
 import '../widgets/score_ring.dart';
+import 'profile_screen.dart';
 
 /// Port de `ui/screens/DashboardScreen.kt`.
 const Color _dBg = Color(0xFFF1ECFB);
@@ -23,14 +24,16 @@ class DashboardScreen extends StatefulWidget {
     super.key,
     required this.onOpenEditor,
     required this.onCreateNew,
-    required this.onProfile,
+    required this.onSignOut,
+    required this.onReplayOnboarding,
   });
 
   /// Reçoit l'identifiant du document — la version Kotlin passait un `Int`
   /// d'une liste figée.
   final ValueChanged<String> onOpenEditor;
   final VoidCallback onCreateNew;
-  final VoidCallback onProfile;
+  final VoidCallback onSignOut;
+  final VoidCallback onReplayOnboarding;
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -79,82 +82,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
         builder: (context, vis) {
           return Stack(
             children: [
-              Column(
-                children: [
-                  // ── En-tête sombre ─────────────────────────
-                  EntranceItem(
-                    visible: vis[0],
-                    fromY: -28,
-                    child: _DarkHeader(
-                      statsVisible: _statsVisible,
-                      documents: documents,
-                      onProfile: widget.onProfile,
-                    ),
+              // Le contenu change selon l'onglet actif. La version Kotlin
+              // animait la sélection mais affichait toujours la même chose.
+              switch (_activeTab) {
+                1 => const ComingSoonTab(
+                    icon: '⊟',
+                    title: 'Modèles',
+                    description:
+                        "La galerie de modèles n'est pas encore implémentée. "
+                        "L'export PDF utilise pour l'instant une mise en page "
+                        'unique, définie dans PdfGenerator.',
                   ),
-
-                  // ── Puces de filtre ────────────────────────
-                  EntranceItem(
-                    visible: vis[1],
-                    fromY: 14,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 14,
-                      ),
-                      child: Row(
-                        children: [
-                          for (final f in _filters) ...[
-                            _FilterChip(
-                              label: f,
-                              active: f == _activeFilter,
-                              onTap: () => setState(() => _activeFilter = f),
-                            ),
-                            const SizedBox(width: 9),
-                          ],
-                        ],
-                      ),
-                    ),
+                2 => const ComingSoonTab(
+                    icon: '✦',
+                    title: 'Assistant IA',
+                    description:
+                        "La reformulation par IA n'est pas branchée : le "
+                        "bouton de l'éditeur joue l'animation sans appeler de "
+                        'service. Le score affiché est une mesure de '
+                        'complétude, pas une analyse ATS.',
                   ),
-
-                  // ── Liste des CV ───────────────────────────
-                  Expanded(
-                    child: EntranceItem(
-                      visible: vis[2],
-                      fromY: 20,
-                      child: ListView.separated(
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        itemCount: filtered.length + 1,
-                        separatorBuilder: (_, __) => const SizedBox(height: 12),
-                        itemBuilder: (context, index) {
-                          if (index == filtered.length) {
-                            return Padding(
-                              padding: const EdgeInsets.only(
-                                top: 4,
-                                bottom: 100,
-                              ),
-                              child: Column(
-                                children: [
-                                  if (filtered.isEmpty)
-                                    _EmptyState(filter: _activeFilter),
-                                  _CreateNewCard(onTap: widget.onCreateNew),
-                                ],
-                              ),
-                            );
-                          }
-                          final cv = filtered[index];
-                          return _StaggeredCvCard(
-                            index: index,
-                            cv: cv,
-                            onTap: () => widget.onOpenEditor(cv.id),
-                            onDelete: () =>
-                                context.read<CvLibrary>().remove(cv.id),
-                          );
-                        },
-                      ),
-                    ),
+                3 => ProfileScreen(
+                    onSignOut: widget.onSignOut,
+                    onReplayOnboarding: widget.onReplayOnboarding,
                   ),
-                ],
-              ),
+                _ => _HomeTab(
+                    vis: vis,
+                    statsVisible: _statsVisible,
+                    documents: documents,
+                    filtered: filtered,
+                    filters: _filters,
+                    activeFilter: _activeFilter,
+                    onFilterChange: (f) => setState(() => _activeFilter = f),
+                    onOpenEditor: widget.onOpenEditor,
+                    onCreateNew: widget.onCreateNew,
+                    onProfile: () => setState(() => _activeTab = 3),
+                  ),
+              },
 
               // ── Barre d'onglets en verre ─────────────────
               Align(
@@ -169,6 +133,101 @@ class _DashboardScreenState extends State<DashboardScreen> {
           );
         },
       ),
+    );
+  }
+}
+
+// ── Onglet Accueil : en-tête, filtres, liste ─────────────────────────────────
+
+class _HomeTab extends StatelessWidget {
+  const _HomeTab({
+    required this.vis,
+    required this.statsVisible,
+    required this.documents,
+    required this.filtered,
+    required this.filters,
+    required this.activeFilter,
+    required this.onFilterChange,
+    required this.onOpenEditor,
+    required this.onCreateNew,
+    required this.onProfile,
+  });
+
+  final List<bool> vis;
+  final bool statsVisible;
+  final List<CvDocument> documents;
+  final List<CvDocument> filtered;
+  final List<String> filters;
+  final String activeFilter;
+  final ValueChanged<String> onFilterChange;
+  final ValueChanged<String> onOpenEditor;
+  final VoidCallback onCreateNew;
+  final VoidCallback onProfile;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        EntranceItem(
+          visible: vis[0],
+          fromY: -28,
+          child: _DarkHeader(
+            statsVisible: statsVisible,
+            documents: documents,
+            onProfile: onProfile,
+          ),
+        ),
+        EntranceItem(
+          visible: vis[1],
+          fromY: 14,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            child: Row(
+              children: [
+                for (final f in filters) ...[
+                  _FilterChip(
+                    label: f,
+                    active: f == activeFilter,
+                    onTap: () => onFilterChange(f),
+                  ),
+                  const SizedBox(width: 9),
+                ],
+              ],
+            ),
+          ),
+        ),
+        Expanded(
+          child: EntranceItem(
+            visible: vis[2],
+            fromY: 20,
+            child: ListView.separated(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              itemCount: filtered.length + 1,
+              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              itemBuilder: (context, index) {
+                if (index == filtered.length) {
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 4, bottom: 100),
+                    child: Column(
+                      children: [
+                        if (filtered.isEmpty) _EmptyState(filter: activeFilter),
+                        _CreateNewCard(onTap: onCreateNew),
+                      ],
+                    ),
+                  );
+                }
+                final cv = filtered[index];
+                return _StaggeredCvCard(
+                  index: index,
+                  cv: cv,
+                  onTap: () => onOpenEditor(cv.id),
+                  onDelete: () => context.read<CvLibrary>().remove(cv.id),
+                );
+              },
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

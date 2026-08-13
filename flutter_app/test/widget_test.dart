@@ -1,6 +1,7 @@
 import 'package:cvgenerator/app.dart';
 import 'package:cvgenerator/models/cv_data.dart';
 import 'package:cvgenerator/models/cv_document.dart';
+import 'package:cvgenerator/screens/dashboard_screen.dart';
 import 'package:cvgenerator/screens/editor_screen.dart';
 import 'package:cvgenerator/state/cv_library.dart';
 import 'package:cvgenerator/state/cv_model.dart';
@@ -122,6 +123,52 @@ void main() {
       final before = library.currentId;
       library.open('identifiant-inexistant');
       expect(library.currentId, before);
+    });
+  });
+
+  group('Onglets du tableau de bord', () {
+    Widget dashboard({VoidCallback? onSignOut}) => MultiProvider(
+          providers: [
+            ChangeNotifierProvider<CvLibrary>(create: (_) => CvLibrary()),
+          ],
+          child: MaterialApp(
+            home: DashboardScreen(
+              onOpenEditor: (_) {},
+              onCreateNew: () {},
+              onSignOut: onSignOut ?? () {},
+              onReplayOnboarding: () {},
+            ),
+          ),
+        );
+
+    testWidgets('l\'onglet Profil affiche l\'identité et déconnecte',
+        (tester) async {
+      var signedOut = false;
+      await tester.pumpWidget(dashboard(onSignOut: () => signedOut = true));
+      await tester.pump(const Duration(milliseconds: 900));
+
+      await tester.tap(find.text('Profil'));
+      await tester.pump(const Duration(milliseconds: 400));
+
+      // L'identité vient du CV le plus récent, faute de compte utilisateur.
+      expect(find.text('amina@example.com'), findsOneWidget);
+
+      await tester.tap(find.text('Se déconnecter'));
+      await tester.pump();
+      expect(signedOut, isTrue);
+    });
+
+    testWidgets('les onglets sans implémentation le disent', (tester) async {
+      await tester.pumpWidget(dashboard());
+      await tester.pump(const Duration(milliseconds: 900));
+
+      await tester.tap(find.text('Modèles'));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.textContaining('pas encore implémentée'), findsOneWidget);
+
+      await tester.tap(find.text('IA'));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.textContaining('pas branchée'), findsOneWidget);
     });
   });
 
