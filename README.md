@@ -6,7 +6,7 @@ l'application Android d'origine et son portage Flutter.
 | Dossier | Stack | État |
 |---|---|---|
 | [`app/`](app/) | Kotlin · Jetpack Compose | Fonctionnel, tous les écrans implémentés |
-| [`flutter_app/`](flutter_app/) | Dart · Flutter | Portage complet, pas encore compilé |
+| [`flutter_app/`](flutter_app/) | Dart · Flutter | Portage complet — analyse vierge, 7 tests au vert |
 
 Le portage Flutter a été motivé par la cible iOS : le projet Compose était
 encore assez petit pour que la réécriture soit rentable.
@@ -30,9 +30,15 @@ flutter pub get
 flutter run
 ```
 
-Flutter ≥ 3.27 requis. Les dossiers `android/` et `ios/` doivent être générés
-au premier clone — la procédure est dans [flutter_app/README.md](flutter_app/README.md),
-section « Finalisation ».
+Flutter ≥ 3.27 requis. Cibles disponibles : Android, iOS, web.
+
+Pour un aperçu dans un onglet VS Code :
+
+```bash
+flutter run -d web-server --web-port=8080 --web-hostname=127.0.0.1
+```
+
+puis `Ctrl+Shift+P` → *Simple Browser: Show* → `http://127.0.0.1:8080`.
 
 ### Version Android
 

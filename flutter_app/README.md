@@ -6,49 +6,34 @@ en dehors de ce dossier.
 
 ## État
 
-Tout le code Dart est écrit (`lib/`, 100 % du Kotlin porté). Il manque
-uniquement les dossiers de plateforme (`android/`, `ios/`), qui ne peuvent pas
-être écrits à la main — ils sont générés par l'outil `flutter`, qui **n'est pas
-installé sur cette machine**. Voir « Finalisation » ci-dessous.
+Portage complet et **vérifié** avec Flutter 3.44.9 / Dart 3.12.2 :
 
-> ⚠️ Le code n'a donc pas encore été compilé ni exécuté. La première
-> exécution de `flutter analyze` révélera probablement quelques ajustements
-> mineurs (imports, `const`) — c'est normal pour un portage de cette taille.
+- `flutter analyze` — aucune remontée
+- `flutter test` — 7 tests au vert
+- Plateformes générées : `android/`, `ios/`, `web/`
 
-## Installation de Flutter (Windows)
-
-1. Télécharger le SDK : <https://docs.flutter.dev/get-started/install/windows>
-2. Décompresser dans `C:\src\flutter` (éviter les chemins avec espaces ou
-   `Program Files`).
-3. Ajouter `C:\src\flutter\bin` au `PATH`.
-4. Vérifier : `flutter doctor`
-
-Android Studio est déjà installé avec le SDK Android — `flutter doctor` devrait
-le détecter. Il faudra accepter les licences : `flutter doctor --android-licenses`,
-et installer le plugin Flutter dans Android Studio.
-
-## Finalisation
-
-Depuis `flutter_app/`, générer les dossiers de plateforme sans écraser le code
-porté :
+## Démarrer
 
 ```bash
-# 1. Mettre le code porté à l'abri (flutter create réécrit lib/main.dart)
-mv lib lib_port
-
-# 2. Générer android/, ios/, et les fichiers manquants
-flutter create --platforms=android,ios --org com.cvgenerator --project-name cvgenerator .
-
-# 3. Restaurer le code porté
-rm -rf lib && mv lib_port lib
-
-# 4. Dépendances puis contrôle statique
 flutter pub get
-flutter analyze
-
-# 5. Lancer
 flutter run
 ```
+
+Flutter ≥ 3.27 requis (le code utilise `Color.withValues`, introduit avec
+Dart 3.6).
+
+### Aperçu dans un onglet VS Code
+
+```bash
+flutter run -d web-server --web-port=8080 --web-hostname=127.0.0.1
+```
+
+Puis `Ctrl+Shift+P` → *Simple Browser: Show* → `http://127.0.0.1:8080`.
+
+Flutter n'a pas d'équivalent à `@Preview` de Compose : aucun rendu ne
+s'affiche dans l'éditeur sans lancer l'application. Le hot reload compense —
+les modifications apparaissent en moins d'une seconde sur l'app en cours
+d'exécution.
 
 ## Correspondance des fichiers
 
@@ -131,6 +116,15 @@ modifiés.
   pied de page de l'assistant n'ajoute pas de second appel à l'action.
 - **Thème** — l'assistant réinjecte `AppTheme.legacyDark`, car les écrans
   d'étape lisent `Theme.of(context)` en attendant le schéma doré d'origine.
+
+**Débordement du Welcome.** L'écran est dense : sous ~700 px de hauteur
+utile, un `Column` en `spaceBetween` rognait le contenu — la version Compose
+avait le même défaut. La stratégie est désormais choisie explicitement selon
+la place disponible ([welcome_screen.dart](lib/screens/welcome_screen.dart)).
+Deux recettes plus élégantes ont été essayées puis écartées :
+`IntrinsicHeight` sous-mesure de 44 px, car `AnimatedSwitcher` et `Transform`
+ne reportent pas correctement leur hauteur intrinsèque ; et
+`SliverFillRemaining` borne malgré tout le `Column` à la hauteur de la fenêtre.
 
 **Incohérence héritée de l'original — `EditorScreen` et l'export.**
 `MainActivity.exportPdf()` exportait `viewModel.cvData`, alors que
