@@ -45,3 +45,8 @@ Thumbs.db
 
 # Réglages Claude Code propres à la machine
 .claude/settings.local.json
+
+# Rapports de plantage JVM (générés par -XX:+HeapDumpOnOutOfMemoryError)
+hs_err_pid*.log
+replay_pid*.log
+*.hprof
