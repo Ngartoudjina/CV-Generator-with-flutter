@@ -178,15 +178,15 @@ class _EditorScreenState extends State<EditorScreen> {
 
               // ── Toast « IA terminée » ────────────────────
               if (_aiState == AiState.done)
-                Align(
+                const Align(
                   alignment: Alignment.topCenter,
                   child: Padding(
-                    padding: const EdgeInsets.only(
+                    padding: EdgeInsets.only(
                       top: 140,
                       left: 24,
                       right: 24,
                     ),
-                    child: const _AiDoneToast(),
+                    child: _AiDoneToast(),
                   ),
                 ),
             ],
@@ -209,8 +209,7 @@ class _EditorScreenState extends State<EditorScreen> {
           skills: _skills,
           suggestions: _suggestions,
           showSuggestions: _showSuggestions,
-          onToggle: () =>
-              setState(() => _showSuggestions = !_showSuggestions),
+          onToggle: () => setState(() => _showSuggestions = !_showSuggestions),
           onRemove: (s) => setState(() {
             _skills = _skills.where((x) => x != s).toList();
           }),
@@ -535,7 +534,8 @@ class _AiButton extends StatelessWidget {
               AiState.idle => const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text('✦', style: TextStyle(fontSize: 14, color: Colors.white)),
+                    Text('✦',
+                        style: TextStyle(fontSize: 14, color: Colors.white)),
                     SizedBox(width: 8),
                     Text(
                       "Reformuler avec l'IA",
@@ -995,7 +995,8 @@ class _AiDoneToast extends StatelessWidget {
       curve: kBouncy,
       builder: (context, t, child) => Opacity(
         opacity: t.clamp(0.0, 1.0),
-        child: Transform.translate(offset: Offset(0, -40 * (1 - t)), child: child),
+        child:
+            Transform.translate(offset: Offset(0, -40 * (1 - t)), child: child),
       ),
       child: Container(
         decoration: BoxDecoration(
@@ -1119,7 +1120,6 @@ class _PreviewPanel extends StatelessWidget {
             color: _eAccent.withValues(alpha: 0.28),
           ),
           const SizedBox(height: 14),
-
           const _SectionHeader('Profil'),
           const SizedBox(height: 6),
           Text(
@@ -1131,7 +1131,6 @@ class _PreviewPanel extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-
           const _SectionHeader('Expérience'),
           const SizedBox(height: 8),
           Row(
@@ -1179,7 +1178,6 @@ class _PreviewPanel extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-
           const _SectionHeader('Compétences'),
           const SizedBox(height: 8),
           Wrap(
@@ -1208,7 +1206,6 @@ class _PreviewPanel extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-
           const _SectionHeader('Formation'),
           const SizedBox(height: 8),
           Row(

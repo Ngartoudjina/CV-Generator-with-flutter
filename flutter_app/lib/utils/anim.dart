@@ -43,7 +43,7 @@ class StaggerBuilder extends StatefulWidget {
 }
 
 class _StaggerBuilderState extends State<StaggerBuilder> {
-  late List<bool> _visible = List<bool>.filled(widget.count, false);
+  late final List<bool> _visible = List<bool>.filled(widget.count, false);
   final List<Timer> _timers = [];
 
   @override
@@ -167,7 +167,8 @@ class FloatingBox extends StatefulWidget {
 class _FloatingBoxState extends State<FloatingBox>
     with SingleTickerProviderStateMixin {
   late final AnimationController _c =
-      AnimationController(vsync: this, duration: widget.period)..repeat(reverse: true);
+      AnimationController(vsync: this, duration: widget.period)
+        ..repeat(reverse: true);
 
   @override
   void dispose() {
@@ -375,8 +376,8 @@ class GradientText extends StatelessWidget {
   Widget build(BuildContext context) {
     return ShaderMask(
       blendMode: BlendMode.srcIn,
-      shaderCallback: (bounds) =>
-          gradient.createShader(Rect.fromLTWH(0, 0, bounds.width, bounds.height)),
+      shaderCallback: (bounds) => gradient
+          .createShader(Rect.fromLTWH(0, 0, bounds.width, bounds.height)),
       child: Text(
         text,
         textAlign: textAlign,

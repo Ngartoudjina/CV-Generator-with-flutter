@@ -1,6 +1,5 @@
-import 'dart:io';
+import 'dart:typed_data';
 
-import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
@@ -30,9 +29,19 @@ class PdfGenerator {
 
   static const double _margin = 40;
 
-  /// Construit le document et renvoie ses octets — utilisable pour l'aperçu,
-  /// le partage ou l'impression sans passer par le disque.
-  static Future<List<int>> build(CvData cvData) async {
+  /// Nom de fichier proposé au partage.
+  static String fileName(CvData cvData) {
+    final name = cvData.personalInfo.fullName.trim();
+    return 'CV_${name.isEmpty ? "Sans_nom" : name.replaceAll(" ", "_")}.pdf';
+  }
+
+  /// Construit le document et renvoie ses octets.
+  ///
+  /// Volontairement sans écriture disque : la version Kotlin passait par un
+  /// fichier parce que `Intent.ACTION_VIEW` exigeait une URI de FileProvider.
+  /// `Printing.sharePdf` prend les octets directement, ce qui supprime la
+  /// dépendance à `dart:io` — et donc rend la cible web compilable.
+  static Future<Uint8List> build(CvData cvData) async {
     final doc = pw.Document();
     final info = cvData.personalInfo;
 
@@ -88,20 +97,6 @@ class PdfGenerator {
     return doc.save();
   }
 
-  /// Écrit le PDF dans le répertoire de documents de l'app et renvoie le
-  /// fichier — équivalent du `getExternalFilesDir(null)` d'Android, mais
-  /// fonctionne aussi sur iOS.
-  static Future<File> generate(CvData cvData) async {
-    final bytes = await build(cvData);
-    final dir = await getApplicationDocumentsDirectory();
-    final safeName = cvData.personalInfo.fullName.isEmpty
-        ? 'Sans_nom'
-        : cvData.personalInfo.fullName.replaceAll(' ', '_');
-    final file = File('${dir.path}/CV_$safeName.pdf');
-    await file.writeAsBytes(bytes);
-    return file;
-  }
-
   // ── Blocs de mise en page ──────────────────────────────────────────────
 
   static pw.Widget _header(PersonalInfo info) {
@@ -122,7 +117,7 @@ class PdfGenerator {
         children: [
           pw.Text(
             info.fullName.isEmpty ? 'Votre Nom' : info.fullName,
-            style: pw.TextStyle(
+            style: const pw.TextStyle(
               fontSize: 22,
               fontWeight: pw.FontWeight.bold,
               color: _cream,
@@ -153,7 +148,7 @@ class PdfGenerator {
       children: [
         pw.Text(
           title,
-          style: pw.TextStyle(
+          style: const pw.TextStyle(
             fontSize: 9,
             fontWeight: pw.FontWeight.bold,
             color: _gold,
@@ -180,7 +175,7 @@ class PdfGenerator {
               pw.Expanded(
                 child: pw.Text(
                   exp.position,
-                  style: pw.TextStyle(
+                  style: const pw.TextStyle(
                     fontSize: 12,
                     fontWeight: pw.FontWeight.bold,
                     color: _strong,
@@ -211,9 +206,8 @@ class PdfGenerator {
   }
 
   static pw.Widget _education(Education edu) {
-    final line = edu.field.isEmpty
-        ? edu.school
-        : '${edu.school} · ${edu.field}';
+    final line =
+        edu.field.isEmpty ? edu.school : '${edu.school} · ${edu.field}';
 
     return pw.Padding(
       padding: const pw.EdgeInsets.only(bottom: 8),
@@ -227,7 +221,7 @@ class PdfGenerator {
               pw.Expanded(
                 child: pw.Text(
                   edu.degree,
-                  style: pw.TextStyle(
+                  style: const pw.TextStyle(
                     fontSize: 12,
                     fontWeight: pw.FontWeight.bold,
                     color: _strong,
@@ -277,6 +271,10 @@ class PdfGenerator {
     );
   }
 
+  /// Part remplie de la barre, exprimée en centièmes — `flex` n'accepte que
+  /// des entiers. Bornée à [1, 100] pour qu'un niveau nul reste visible.
+  static int _filledFlex(double level) => (level * 100).round().clamp(1, 100);
+
   static pw.Widget _skillBar(Skill skill) {
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -297,14 +295,24 @@ class PdfGenerator {
           ],
         ),
         pw.SizedBox(height: 4),
-        pw.Stack(
-          children: [
-            pw.Container(height: 5, color: _barBg),
-            pw.FractionallySizedBox(
-              widthFactor: skill.level.value,
-              child: pw.Container(height: 5, color: _gold),
-            ),
-          ],
+        // Le package `pdf` n'a pas de FractionallySizedBox : on répartit la
+        // barre en deux `Expanded` pondérés (niveau / reste) plutôt que de
+        // superposer un remplissage sur un fond.
+        pw.SizedBox(
+          height: 5,
+          child: pw.Row(
+            children: [
+              pw.Expanded(
+                flex: _filledFlex(skill.level.value),
+                child: pw.Container(color: _gold),
+              ),
+              if (_filledFlex(skill.level.value) < 100)
+                pw.Expanded(
+                  flex: 100 - _filledFlex(skill.level.value),
+                  child: pw.Container(color: _barBg),
+                ),
+            ],
+          ),
         ),
       ],
     );

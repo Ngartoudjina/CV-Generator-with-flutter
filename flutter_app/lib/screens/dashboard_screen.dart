@@ -418,9 +418,8 @@ class _FilterChip extends StatelessWidget {
                 : const LinearGradient(colors: [_dCard, _dCard]),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: active
-                  ? Colors.transparent
-                  : _dInk.withValues(alpha: 0.10),
+              color:
+                  active ? Colors.transparent : _dInk.withValues(alpha: 0.10),
             ),
           ),
           child: Text(

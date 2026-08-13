@@ -131,8 +131,7 @@ class _SkillsScreenState extends State<SkillsScreen> {
                     for (final level in SkillLevel.values)
                       FilterChip(
                         selected: _skillLevel == level,
-                        onSelected: (_) =>
-                            setState(() => _skillLevel = level),
+                        onSelected: (_) => setState(() => _skillLevel = level),
                         label: Text(
                           level.label,
                           style: const TextStyle(fontSize: 11),

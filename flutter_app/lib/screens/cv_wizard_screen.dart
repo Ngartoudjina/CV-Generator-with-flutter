@@ -83,15 +83,12 @@ class _CvWizardScreenState extends State<CvWizardScreen> {
           child: Column(
             children: [
               _WizardHeader(onBack: widget.onBack, step: step),
-
               StepProgressBar(
                 currentStep: step,
                 totalSteps: CvModel.totalSteps,
                 onStepClick: (i) => _goToStep(model, i),
               ),
-
               const Divider(height: 1, color: AppColors.mediumGray),
-
               Expanded(
                 child: AnimatedSwitcher(
                   duration: const Duration(milliseconds: 260),
@@ -115,14 +112,12 @@ class _CvWizardScreenState extends State<CvWizardScreen> {
                       2 => const EducationScreen(),
                       3 => const SkillsScreen(),
                       _ => PreviewScreen(
-                          onExportPdf: () =>
-                              exportCvPdf(context, model.cvData),
+                          onExportPdf: () => exportCvPdf(context, model.cvData),
                         ),
                     },
                   ),
                 ),
               ),
-
               _WizardFooter(
                 step: step,
                 isLast: isLast,

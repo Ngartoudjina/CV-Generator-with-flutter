@@ -12,6 +12,11 @@ const Color _wInk = Color(0xFFEFEBFF);
 const Color _wInkSub = Color(0xFFBBB0D8);
 const Color _wAccent = AppColors.accent;
 
+/// Hauteur nécessaire pour afficher tout l'écran sans le comprimer.
+/// Au-delà, les blocs sont répartis comme dans la version Compose ; en deçà,
+/// l'écran défile plutôt que de rogner le contenu.
+const double _spreadThreshold = 700;
+
 class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({
     super.key,
@@ -90,238 +95,270 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                 startDelay: const Duration(milliseconds: 100),
                 stepDelay: const Duration(milliseconds: 85),
                 builder: (context, vis) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // ── Barre supérieure ───────────────────
-                        EntranceItem(
-                          visible: vis[0],
-                          fromY: -22,
-                          child: Padding(
-                            padding: const EdgeInsets.only(top: 20),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Image.asset(
-                                  'assets/images/logo_icon.png',
-                                  width: 52,
-                                  height: 52,
-                                  fit: BoxFit.contain,
-                                ),
-                                _LoginPill(onTap: widget.onLogin),
-                              ],
-                            ),
-                          ),
-                        ),
-
-                        // ── Bloc titre ─────────────────────────
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                  // L'écran est dense : sur une hauteur réduite (petit
+                  // téléphone, fenêtre redimensionnée) un Column en
+                  // spaceBetween déborde et rogne le contenu — la version
+                  // Compose avait le même défaut.
+                  //
+                  // On choisit donc la stratégie explicitement selon la place
+                  // disponible (voir le LayoutBuilder plus bas). Les recettes
+                  // habituelles ont été écartées : IntrinsicHeight sous-mesure
+                  // de 44 px, car les widgets animés d'ici (AnimatedSwitcher,
+                  // Transform) ne reportent pas correctement leur hauteur
+                  // intrinsèque, et SliverFillRemaining borne malgré tout le
+                  // Column à la hauteur de la fenêtre.
+                  final blocks = <Widget>[
+                    // ── Barre supérieure ───────────────────
+                    EntranceItem(
+                      visible: vis[0],
+                      fromY: -22,
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 20),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            EntranceItem(
-                              visible: vis[1],
-                              fromY: 18,
-                              fromScale: 0.90,
-                              child: const Align(
-                                alignment: Alignment.centerLeft,
-                                child: _GradientBadge(
-                                  '✦  GÉNÉRATEUR DE CV · IA',
-                                ),
-                              ),
+                            Image.asset(
+                              'assets/images/logo_icon.png',
+                              width: 52,
+                              height: 52,
+                              fit: BoxFit.contain,
                             ),
-                            const SizedBox(height: 14),
-                            EntranceItem(
-                              visible: vis[2],
-                              fromY: 28,
-                              child: const Text('Le CV qui', style: _heroStyle),
-                            ),
-                            EntranceItem(
-                              visible: vis[3],
-                              fromY: 28,
-                              child: const Text('vous fait', style: _heroStyle),
-                            ),
-                            EntranceItem(
-                              visible: vis[4],
-                              fromY: 28,
-                              child: AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 240),
-                                reverseDuration:
-                                    const Duration(milliseconds: 160),
-                                switchInCurve: Curves.easeOutCubic,
-                                switchOutCurve: Curves.easeInCubic,
-                                transitionBuilder: (child, animation) {
-                                  return FadeTransition(
-                                    opacity: animation,
-                                    child: ScaleTransition(
-                                      scale: Tween<double>(begin: 0.78, end: 1)
-                                          .animate(animation),
-                                      child: SlideTransition(
-                                        position: Tween<Offset>(
-                                          begin: const Offset(0, 0.33),
-                                          end: Offset.zero,
-                                        ).animate(animation),
-                                        child: child,
-                                      ),
-                                    ),
-                                  );
-                                },
-                                child: GradientText(
-                                  '${_words[_wordIndex]}.',
-                                  key: ValueKey(_wordIndex),
-                                  gradient: const LinearGradient(
-                                    colors: [_wAccent, AppColors.accentCo],
-                                  ),
-                                  style: _heroStyle,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            EntranceItem(
-                              visible: vis[5],
-                              fromY: 16,
-                              child: const Text(
-                                "Décrivez votre parcours. L'IA le transforme en CV "
-                                'qui décroche des entretiens.',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: _wInkSub,
-                                  height: 1.56,
-                                ),
-                              ),
-                            ),
+                            _LoginPill(onTap: widget.onLogin),
                           ],
                         ),
+                      ),
+                    ),
 
-                        // ── Carte flottante ────────────────────
+                    // ── Bloc titre ─────────────────────────
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                         EntranceItem(
-                          visible: vis[6],
-                          fromY: 38,
-                          fromScale: 0.86,
-                          child: FloatingBox(
-                            amplitude: 6,
-                            period: const Duration(milliseconds: 3000),
-                            child: Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                PulseBuilder(
-                                  min: 0.10,
-                                  max: 0.30,
-                                  duration: const Duration(milliseconds: 1800),
-                                  builder: (context, glow) => Container(
-                                    width: 300,
-                                    height: 130,
-                                    decoration: BoxDecoration(
-                                      gradient: RadialGradient(
-                                        colors: [
-                                          _wAccent.withValues(alpha: glow),
-                                          Colors.transparent,
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                _HeroCard(targetScore: _targetScore),
-                              ],
+                          visible: vis[1],
+                          fromY: 18,
+                          fromScale: 0.90,
+                          child: const Align(
+                            alignment: Alignment.centerLeft,
+                            child: _GradientBadge(
+                              '✦  GÉNÉRATEUR DE CV · IA',
                             ),
                           ),
                         ),
-
-                        // ── Preuve sociale ─────────────────────
+                        const SizedBox(height: 14),
                         EntranceItem(
-                          visible: vis[6],
-                          fromY: 14,
-                          child: const Padding(
-                            padding: EdgeInsets.only(bottom: 4),
-                            child: Row(
-                              children: [
-                                _OverlappingAvatars(),
-                                SizedBox(width: 12),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      '★★★★★',
-                                      style: TextStyle(
-                                        color: _wAccent,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                    Text(
-                                      'Rejoint par 12 000+ candidats',
-                                      style: TextStyle(
-                                        color: _wInkSub,
-                                        fontSize: 11.5,
-                                      ),
-                                    ),
-                                  ],
+                          visible: vis[2],
+                          fromY: 28,
+                          child: const Text('Le CV qui', style: _heroStyle),
+                        ),
+                        EntranceItem(
+                          visible: vis[3],
+                          fromY: 28,
+                          child: const Text('vous fait', style: _heroStyle),
+                        ),
+                        EntranceItem(
+                          visible: vis[4],
+                          fromY: 28,
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 240),
+                            reverseDuration: const Duration(milliseconds: 160),
+                            switchInCurve: Curves.easeOutCubic,
+                            switchOutCurve: Curves.easeInCubic,
+                            transitionBuilder: (child, animation) {
+                              return FadeTransition(
+                                opacity: animation,
+                                child: ScaleTransition(
+                                  scale: Tween<double>(begin: 0.78, end: 1)
+                                      .animate(animation),
+                                  child: SlideTransition(
+                                    position: Tween<Offset>(
+                                      begin: const Offset(0, 0.33),
+                                      end: Offset.zero,
+                                    ).animate(animation),
+                                    child: child,
+                                  ),
                                 ),
-                              ],
+                              );
+                            },
+                            child: GradientText(
+                              '${_words[_wordIndex]}.',
+                              key: ValueKey(_wordIndex),
+                              gradient: const LinearGradient(
+                                colors: [_wAccent, AppColors.accentCo],
+                              ),
+                              style: _heroStyle,
                             ),
                           ),
                         ),
-
-                        // ── Boutons d'appel à l'action ─────────
+                        const SizedBox(height: 16),
                         EntranceItem(
-                          visible: vis[7],
-                          fromY: 30,
-                          fromScale: 0.94,
-                          child: Padding(
-                            padding: const EdgeInsets.only(bottom: 36),
-                            child: Column(
-                              children: [
-                                PressScale(
-                                  pressedScale: 0.965,
-                                  onTap: widget.onGetStarted,
-                                  child: Container(
-                                    height: 58,
-                                    alignment: Alignment.center,
-                                    decoration: BoxDecoration(
-                                      gradient: AppColors.accentGradient,
-                                      borderRadius: BorderRadius.circular(18),
-                                    ),
-                                    child: const Text(
-                                      'Créer mon CV — gratuit  →',
-                                      style: TextStyle(
-                                        fontSize: 16.5,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                                PressScale(
-                                  pressedScale: 0.97,
-                                  onTap: widget.onLogin,
-                                  child: Container(
-                                    height: 50,
-                                    alignment: Alignment.center,
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(18),
-                                      border: Border.all(
-                                        color: _wInk.withValues(alpha: 0.22),
-                                      ),
-                                    ),
-                                    child: Text(
-                                      'Voir un exemple en 30 s',
-                                      style: TextStyle(
-                                        fontSize: 14.5,
-                                        fontWeight: FontWeight.w600,
-                                        color: _wInk.withValues(alpha: 0.72),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
+                          visible: vis[5],
+                          fromY: 16,
+                          child: const Text(
+                            "Décrivez votre parcours. L'IA le transforme en CV "
+                            'qui décroche des entretiens.',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: _wInkSub,
+                              height: 1.56,
                             ),
                           ),
                         ),
                       ],
                     ),
+
+                    // ── Carte flottante ────────────────────
+                    EntranceItem(
+                      visible: vis[6],
+                      fromY: 38,
+                      fromScale: 0.86,
+                      child: FloatingBox(
+                        amplitude: 6,
+                        period: const Duration(milliseconds: 3000),
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            PulseBuilder(
+                              min: 0.10,
+                              max: 0.30,
+                              duration: const Duration(milliseconds: 1800),
+                              builder: (context, glow) => Container(
+                                width: 300,
+                                height: 130,
+                                decoration: BoxDecoration(
+                                  gradient: RadialGradient(
+                                    colors: [
+                                      _wAccent.withValues(alpha: glow),
+                                      Colors.transparent,
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            _HeroCard(targetScore: _targetScore),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    // ── Preuve sociale ─────────────────────
+                    EntranceItem(
+                      visible: vis[6],
+                      fromY: 14,
+                      child: const Padding(
+                        padding: EdgeInsets.only(bottom: 4),
+                        child: Row(
+                          children: [
+                            _OverlappingAvatars(),
+                            SizedBox(width: 12),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  '★★★★★',
+                                  style: TextStyle(
+                                    color: _wAccent,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                Text(
+                                  'Rejoint par 12 000+ candidats',
+                                  style: TextStyle(
+                                    color: _wInkSub,
+                                    fontSize: 11.5,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    // ── Boutons d'appel à l'action ─────────
+                    EntranceItem(
+                      visible: vis[7],
+                      fromY: 30,
+                      fromScale: 0.94,
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 36),
+                        child: Column(
+                          children: [
+                            PressScale(
+                              pressedScale: 0.965,
+                              onTap: widget.onGetStarted,
+                              child: Container(
+                                height: 58,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  gradient: AppColors.accentGradient,
+                                  borderRadius: BorderRadius.circular(18),
+                                ),
+                                child: const Text(
+                                  'Créer mon CV — gratuit  →',
+                                  style: TextStyle(
+                                    fontSize: 16.5,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            PressScale(
+                              pressedScale: 0.97,
+                              onTap: widget.onLogin,
+                              child: Container(
+                                height: 50,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(18),
+                                  border: Border.all(
+                                    color: _wInk.withValues(alpha: 0.22),
+                                  ),
+                                ),
+                                child: Text(
+                                  'Voir un exemple en 30 s',
+                                  style: TextStyle(
+                                    fontSize: 14.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: _wInk.withValues(alpha: 0.72),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ];
+
+                  return LayoutBuilder(
+                    builder: (context, constraints) {
+                      const pad = EdgeInsets.symmetric(horizontal: 24);
+
+                      // Assez de place : répartition d'origine, sans défilement.
+                      if (constraints.maxHeight >= _spreadThreshold) {
+                        return Padding(
+                          padding: pad,
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: blocks,
+                          ),
+                        );
+                      }
+
+                      // Hauteur insuffisante : on défile au lieu de rogner.
+                      return SingleChildScrollView(
+                        padding: pad,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: blocks,
+                        ),
+                      );
+                    },
                   );
                 },
               ),

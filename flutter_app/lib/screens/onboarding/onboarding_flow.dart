@@ -276,15 +276,14 @@ class _ObHeader extends StatelessWidget {
 }
 
 class _ObFooter extends StatelessWidget {
-  const _ObFooter({
-    required this.dotsActive,
-    required this.onNext,
-    this.label = 'Suivant',
-  });
+  const _ObFooter({required this.dotsActive, required this.onNext});
 
   final int dotsActive;
   final VoidCallback onNext;
-  final String label;
+
+  /// Les trois écrans de présentation utilisent le même libellé ; le
+  /// paramètre `label` de la version Kotlin n'était jamais surchargé.
+  static const String label = 'Suivant';
 
   @override
   Widget build(BuildContext context) {
@@ -386,8 +385,7 @@ class _SplashScreen extends StatelessWidget {
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(15),
-                  border:
-                      Border.all(color: _obWhite.withValues(alpha: 0.22)),
+                  border: Border.all(color: _obWhite.withValues(alpha: 0.22)),
                 ),
                 child: Text(
                   "J'ai déjà un compte",
@@ -487,8 +485,7 @@ class _FeatureWriteScreenState extends State<_FeatureWriteScreen>
                     decoration: BoxDecoration(
                       color: _obCard,
                       borderRadius: BorderRadius.circular(16),
-                      border:
-                          Border.all(color: _obInk.withValues(alpha: 0.07)),
+                      border: Border.all(color: _obInk.withValues(alpha: 0.07)),
                     ),
                     padding: const EdgeInsets.all(16),
                     child: Column(
@@ -547,8 +544,7 @@ class _FeatureWriteScreenState extends State<_FeatureWriteScreen>
                           ),
                           child: const Text(
                             '✦',
-                            style:
-                                TextStyle(color: _obAccent, fontSize: 15),
+                            style: TextStyle(color: _obAccent, fontSize: 15),
                           ),
                         ),
                         const SizedBox(width: 10),
@@ -581,10 +577,10 @@ class _FeatureWriteScreenState extends State<_FeatureWriteScreen>
                           ),
                         ),
                         padding: const EdgeInsets.all(16),
-                        child: Column(
+                        child: const Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
+                            Text(
                               'Résultat pro',
                               style: TextStyle(
                                 color: _obAccent,
@@ -592,7 +588,7 @@ class _FeatureWriteScreenState extends State<_FeatureWriteScreen>
                                 letterSpacing: 1,
                               ),
                             ),
-                            const SizedBox(height: 8),
+                            SizedBox(height: 8),
                             Text.rich(
                               TextSpan(
                                 style: TextStyle(
@@ -601,7 +597,7 @@ class _FeatureWriteScreenState extends State<_FeatureWriteScreen>
                                   height: 1.47,
                                   fontWeight: FontWeight.w500,
                                 ),
-                                children: const [
+                                children: [
                                   TextSpan(
                                     text: 'Piloté',
                                     style: TextStyle(
@@ -611,8 +607,7 @@ class _FeatureWriteScreenState extends State<_FeatureWriteScreen>
                                   ),
                                   TextSpan(text: ' une équipe de 6 et '),
                                   TextSpan(
-                                    text:
-                                        "accru le chiffre d'affaires de 32 %",
+                                    text: "accru le chiffre d'affaires de 32 %",
                                     style: TextStyle(
                                       color: _obAccent,
                                       fontWeight: FontWeight.bold,
@@ -950,8 +945,7 @@ class _FeatureExportScreenState extends State<_FeatureExportScreen> {
                                         color: _obAccent.withValues(
                                           alpha: 0.18,
                                         ),
-                                        borderRadius:
-                                            BorderRadius.circular(20),
+                                        borderRadius: BorderRadius.circular(20),
                                       ),
                                       child: Text(
                                         tag,
@@ -1150,7 +1144,7 @@ class _PersonaScreenState extends State<_PersonaScreen> {
                 ),
               ),
             ),
-            _ProgressDots(count: 3, active: 2),
+            const _ProgressDots(count: 3, active: 2),
             const SizedBox(height: 12),
             AnimatedOpacity(
               opacity: _ready ? 1 : 0.45,
@@ -1246,8 +1240,7 @@ class _SelectChip extends StatelessWidget {
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 13,
-                      fontWeight:
-                          selected ? FontWeight.w600 : FontWeight.w500,
+                      fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
                       color: selected ? _obAccent : _obInk,
                     ),
                   ),

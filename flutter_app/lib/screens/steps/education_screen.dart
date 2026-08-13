@@ -66,7 +66,8 @@ class _EducationScreenState extends State<EducationScreen> {
                               color: AppColors.gold,
                             ),
                           ),
-                          Text(edu.school, style: const TextStyle(fontSize: 14)),
+                          Text(edu.school,
+                              style: const TextStyle(fontSize: 14)),
                           if (edu.field.isNotEmpty)
                             Text(
                               edu.field,

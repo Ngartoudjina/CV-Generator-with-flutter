@@ -4,22 +4,21 @@ import 'package:printing/printing.dart';
 import '../models/cv_data.dart';
 import '../pdf/pdf_generator.dart';
 
-/// Génère le PDF, l'écrit sur disque puis le remet au sélecteur de partage
-/// système. Factorisé ici parce que deux écrans l'appellent : l'éditeur
-/// (`EditorScreen`) et l'assistant (`CvWizardScreen`).
+/// Génère le PDF et le remet au sélecteur de partage système. Factorisé ici
+/// parce que deux écrans l'appellent : l'éditeur (`EditorScreen`) et
+/// l'assistant (`CvWizardScreen`).
 ///
 /// Remplace `MainActivity.exportPdf()` : côté Android c'était `FileProvider`
-/// + `Intent.ACTION_VIEW` + `Toast`, ce qui nécessitait une déclaration de
-/// provider dans le manifeste. `Printing.sharePdf` couvre Android et iOS sans
-/// configuration.
+/// + `Intent.ACTION_VIEW` + `Toast`, ce qui exigeait de déclarer un provider
+/// dans le manifeste. `Printing.sharePdf` couvre Android, iOS et le web sans
+/// configuration ni écriture sur disque.
 Future<void> exportCvPdf(BuildContext context, CvData cvData) async {
   // Capturé avant tout `await` : le contexte peut être démonté entre-temps.
   final messenger = ScaffoldMessenger.of(context);
 
   try {
-    final file = await PdfGenerator.generate(cvData);
-    final bytes = await file.readAsBytes();
-    final name = file.uri.pathSegments.last;
+    final bytes = await PdfGenerator.build(cvData);
+    final name = PdfGenerator.fileName(cvData);
 
     await Printing.sharePdf(bytes: bytes, filename: name);
 
