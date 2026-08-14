@@ -39,7 +39,17 @@ class EditorScreen extends StatefulWidget {
 }
 
 class _EditorScreenState extends State<EditorScreen> {
-  static const _sections = ['Profil', 'Expérience', 'Compétences', 'Formation'];
+  // « Langues » complète les quatre sections de la maquette Kotlin : le
+  // modèle porte des langues, l'assistant permet de les saisir et le score de
+  // complétude leur accorde 10 points — mais l'éditeur ne savait pas les
+  // afficher.
+  static const _sections = [
+    'Profil',
+    'Expérience',
+    'Compétences',
+    'Formation',
+    'Langues',
+  ];
   static const _suggestions = [
     'React Native',
     'Flutter',
@@ -56,30 +66,17 @@ class _EditorScreenState extends State<EditorScreen> {
 
   late final CvModel _model;
 
+  // Seul le bloc Profil garde des contrôleurs ici : il édite un objet unique.
+  // Les expériences, formations et langues sont des listes — chaque entrée
+  // possède ses propres contrôleurs, dans son widget.
   final _nameCtrl = TextEditingController();
   final _titleCtrl = TextEditingController();
   final _summaryCtrl = TextEditingController();
-  final _expPositionCtrl = TextEditingController();
-  final _expCompanyCtrl = TextEditingController();
-  final _expStartCtrl = TextEditingController();
-  final _expEndCtrl = TextEditingController();
-  final _expDescCtrl = TextEditingController();
-  final _eduDegreeCtrl = TextEditingController();
-  final _eduSchoolCtrl = TextEditingController();
-  final _eduYearCtrl = TextEditingController();
 
   List<TextEditingController> get _allCtrls => [
         _nameCtrl,
         _titleCtrl,
         _summaryCtrl,
-        _expPositionCtrl,
-        _expCompanyCtrl,
-        _expStartCtrl,
-        _expEndCtrl,
-        _expDescCtrl,
-        _eduDegreeCtrl,
-        _eduSchoolCtrl,
-        _eduYearCtrl,
       ];
 
   Timer? _exportTimer;
@@ -121,22 +118,6 @@ class _EditorScreenState extends State<EditorScreen> {
     _nameCtrl.text = info.fullName;
     _titleCtrl.text = info.jobTitle;
     _summaryCtrl.text = info.summary;
-
-    final exp = _model.cvData.experiences.firstOrNull;
-    if (exp != null) {
-      _expPositionCtrl.text = exp.position;
-      _expCompanyCtrl.text = exp.company;
-      _expStartCtrl.text = exp.startDate;
-      _expEndCtrl.text = exp.endDate;
-      _expDescCtrl.text = exp.description;
-    }
-
-    final edu = _model.cvData.educations.firstOrNull;
-    if (edu != null) {
-      _eduDegreeCtrl.text = edu.degree;
-      _eduSchoolCtrl.text = edu.school;
-      _eduYearCtrl.text = edu.endYear;
-    }
   }
 
   void _attachWriteBack() {
@@ -150,73 +131,8 @@ class _EditorScreenState extends State<EditorScreen> {
       );
     }
 
-    // Sur un CV vierge, la première frappe crée l'entrée au lieu d'être
-    // ignorée — c'est le cas quand on ouvre un CV créé depuis le tableau
-    // de bord.
-    void onExperience() {
-      final exp = _model.cvData.experiences.firstOrNull;
-      if (exp == null) {
-        if (_expPositionCtrl.text.isEmpty && _expCompanyCtrl.text.isEmpty) {
-          return;
-        }
-        _model.addExperience(
-          Experience(
-            position: _expPositionCtrl.text,
-            company: _expCompanyCtrl.text,
-            startDate: _expStartCtrl.text,
-            endDate: _expEndCtrl.text,
-            description: _expDescCtrl.text,
-          ),
-        );
-        return;
-      }
-      _model.updateExperience(
-        exp.copyWith(
-          position: _expPositionCtrl.text,
-          company: _expCompanyCtrl.text,
-          startDate: _expStartCtrl.text,
-          endDate: _expEndCtrl.text,
-          description: _expDescCtrl.text,
-        ),
-      );
-    }
-
-    void onEducation() {
-      final edu = _model.cvData.educations.firstOrNull;
-      if (edu == null) {
-        if (_eduDegreeCtrl.text.isEmpty && _eduSchoolCtrl.text.isEmpty) return;
-        _model.addEducation(
-          Education(
-            degree: _eduDegreeCtrl.text,
-            school: _eduSchoolCtrl.text,
-            endYear: _eduYearCtrl.text,
-          ),
-        );
-        return;
-      }
-      _model.updateEducation(
-        edu.copyWith(
-          degree: _eduDegreeCtrl.text,
-          school: _eduSchoolCtrl.text,
-          endYear: _eduYearCtrl.text,
-        ),
-      );
-    }
-
     for (final c in [_nameCtrl, _titleCtrl, _summaryCtrl]) {
       c.addListener(onProfile);
-    }
-    for (final c in [
-      _expPositionCtrl,
-      _expCompanyCtrl,
-      _expStartCtrl,
-      _expEndCtrl,
-      _expDescCtrl,
-    ]) {
-      c.addListener(onExperience);
-    }
-    for (final c in [_eduDegreeCtrl, _eduSchoolCtrl, _eduYearCtrl]) {
-      c.addListener(onEducation);
     }
   }
 
@@ -403,18 +319,9 @@ class _EditorScreenState extends State<EditorScreen> {
             if (!exists) _model.addSkill(Skill(name: name));
           },
         ),
-      'Expérience' => _ExperienceEditorContent(
-          positionCtrl: _expPositionCtrl,
-          companyCtrl: _expCompanyCtrl,
-          startCtrl: _expStartCtrl,
-          endCtrl: _expEndCtrl,
-          descriptionCtrl: _expDescCtrl,
-        ),
-      'Formation' => _FormationEditorContent(
-          degreeCtrl: _eduDegreeCtrl,
-          schoolCtrl: _eduSchoolCtrl,
-          yearCtrl: _eduYearCtrl,
-        ),
+      'Expérience' => const _ExperienceSection(),
+      'Formation' => const _FormationSection(),
+      'Langues' => const _LanguagesSection(),
       _ => const SizedBox.shrink(),
     };
   }
@@ -996,48 +903,121 @@ class _SkillsContent extends StatelessWidget {
   }
 }
 
-// ── Éditeurs Expérience & Formation ──────────────────────────────────────────
+// ── Sections à entrées multiples ─────────────────────────────────────────────
 //
-// Ces deux blocs éditent la première entrée de `CvModel`. La version Compose
-// affichait des valeurs figées avec un `onValueChange` vide : la saisie était
-// perdue et n'atteignait jamais le PDF.
+// La version Compose affichait des valeurs figées avec un `onValueChange`
+// vide. Le premier portage n'éditait que la première entrée : un CV créé dans
+// l'assistant avec trois expériences n'en montrait qu'une, les autres étant
+// invisibles ici tout en apparaissant dans l'aperçu et le PDF.
+//
+// Chaque entrée possède ses propres contrôleurs, dans son widget, identifié
+// par une `ValueKey` sur son identifiant — sans quoi supprimer une ligne du
+// milieu ferait glisser le texte des suivantes.
 
-class _ExperienceEditorContent extends StatelessWidget {
-  const _ExperienceEditorContent({
-    required this.positionCtrl,
-    required this.companyCtrl,
-    required this.startCtrl,
-    required this.endCtrl,
-    required this.descriptionCtrl,
+class _ExperienceSection extends StatelessWidget {
+  const _ExperienceSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final model = context.watch<CvModel>();
+    final items = model.cvData.experiences;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final (i, exp) in items.indexed) ...[
+          _EntryFrame(
+            label: 'Expérience ${i + 1}',
+            onDelete: () => model.removeExperience(exp.id),
+            child: _ExperienceEntry(
+              key: ValueKey(exp.id),
+              experience: exp,
+              onChanged: model.updateExperience,
+            ),
+          ),
+          const SizedBox(height: 14),
+        ],
+        _AddEntryButton(
+          label: 'Ajouter une expérience',
+          onTap: () => model.addExperience(Experience()),
+        ),
+      ],
+    );
+  }
+}
+
+class _ExperienceEntry extends StatefulWidget {
+  const _ExperienceEntry({
+    super.key,
+    required this.experience,
+    required this.onChanged,
   });
 
-  final TextEditingController positionCtrl;
-  final TextEditingController companyCtrl;
-  final TextEditingController startCtrl;
-  final TextEditingController endCtrl;
-  final TextEditingController descriptionCtrl;
+  final Experience experience;
+  final ValueChanged<Experience> onChanged;
+
+  @override
+  State<_ExperienceEntry> createState() => _ExperienceEntryState();
+}
+
+class _ExperienceEntryState extends State<_ExperienceEntry> {
+  late final _position =
+      TextEditingController(text: widget.experience.position);
+  late final _company = TextEditingController(text: widget.experience.company);
+  late final _start = TextEditingController(text: widget.experience.startDate);
+  late final _end = TextEditingController(text: widget.experience.endDate);
+  late final _description =
+      TextEditingController(text: widget.experience.description);
+
+  @override
+  void initState() {
+    super.initState();
+    for (final c in [_position, _company, _start, _end, _description]) {
+      c.addListener(_push);
+    }
+  }
+
+  void _push() {
+    widget.onChanged(
+      widget.experience.copyWith(
+        position: _position.text,
+        company: _company.text,
+        startDate: _start.text,
+        endDate: _end.text,
+        description: _description.text,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    for (final c in [_position, _company, _start, _end, _description]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        EditorField(label: 'Poste', controller: positionCtrl),
+        EditorField(label: 'Poste', controller: _position),
         const SizedBox(height: 12),
-        EditorField(label: 'Entreprise', controller: companyCtrl),
+        EditorField(label: 'Entreprise', controller: _company),
         const SizedBox(height: 12),
         // La version Compose n'avait qu'un champ « Période » ; deux champs
         // distincts sont nécessaires pour alimenter startDate et endDate.
         Row(
           children: [
-            Expanded(child: EditorField(label: 'Début', controller: startCtrl)),
+            Expanded(child: EditorField(label: 'Début', controller: _start)),
             const SizedBox(width: 12),
-            Expanded(child: EditorField(label: 'Fin', controller: endCtrl)),
+            Expanded(child: EditorField(label: 'Fin', controller: _end)),
           ],
         ),
         const SizedBox(height: 12),
         EditorField(
           label: 'Description',
-          controller: descriptionCtrl,
+          controller: _description,
           maxLines: 4,
         ),
       ],
@@ -1045,27 +1025,278 @@ class _ExperienceEditorContent extends StatelessWidget {
   }
 }
 
-class _FormationEditorContent extends StatelessWidget {
-  const _FormationEditorContent({
-    required this.degreeCtrl,
-    required this.schoolCtrl,
-    required this.yearCtrl,
+class _FormationSection extends StatelessWidget {
+  const _FormationSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final model = context.watch<CvModel>();
+    final items = model.cvData.educations;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final (i, edu) in items.indexed) ...[
+          _EntryFrame(
+            label: 'Formation ${i + 1}',
+            onDelete: () => model.removeEducation(edu.id),
+            child: _EducationEntry(
+              key: ValueKey(edu.id),
+              education: edu,
+              onChanged: model.updateEducation,
+            ),
+          ),
+          const SizedBox(height: 14),
+        ],
+        _AddEntryButton(
+          label: 'Ajouter une formation',
+          onTap: () => model.addEducation(Education()),
+        ),
+      ],
+    );
+  }
+}
+
+class _EducationEntry extends StatefulWidget {
+  const _EducationEntry({
+    super.key,
+    required this.education,
+    required this.onChanged,
   });
 
-  final TextEditingController degreeCtrl;
-  final TextEditingController schoolCtrl;
-  final TextEditingController yearCtrl;
+  final Education education;
+  final ValueChanged<Education> onChanged;
+
+  @override
+  State<_EducationEntry> createState() => _EducationEntryState();
+}
+
+class _EducationEntryState extends State<_EducationEntry> {
+  late final _degree = TextEditingController(text: widget.education.degree);
+  late final _school = TextEditingController(text: widget.education.school);
+  late final _field = TextEditingController(text: widget.education.field);
+  late final _start = TextEditingController(text: widget.education.startYear);
+  late final _end = TextEditingController(text: widget.education.endYear);
+
+  @override
+  void initState() {
+    super.initState();
+    for (final c in [_degree, _school, _field, _start, _end]) {
+      c.addListener(_push);
+    }
+  }
+
+  void _push() {
+    widget.onChanged(
+      widget.education.copyWith(
+        degree: _degree.text,
+        school: _school.text,
+        field: _field.text,
+        startYear: _start.text,
+        endYear: _end.text,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    for (final c in [_degree, _school, _field, _start, _end]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        EditorField(label: 'Diplôme', controller: degreeCtrl),
+        EditorField(label: 'Diplôme', controller: _degree),
         const SizedBox(height: 12),
-        EditorField(label: 'Établissement', controller: schoolCtrl),
+        EditorField(label: 'Établissement', controller: _school),
         const SizedBox(height: 12),
-        EditorField(label: 'Année', controller: yearCtrl),
+        EditorField(label: 'Spécialité', controller: _field),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(child: EditorField(label: 'Début', controller: _start)),
+            const SizedBox(width: 12),
+            Expanded(child: EditorField(label: 'Fin', controller: _end)),
+          ],
+        ),
       ],
+    );
+  }
+}
+
+/// Les langues n'étaient éditables que dans l'assistant, alors que le modèle
+/// les porte et que le score de complétude leur accorde 10 points.
+class _LanguagesSection extends StatelessWidget {
+  const _LanguagesSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final model = context.watch<CvModel>();
+    final items = model.cvData.languages;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final lang in items) ...[
+          _EntryFrame(
+            label: lang.name.isEmpty ? 'Langue' : lang.name,
+            onDelete: () => model.removeLanguage(lang.id),
+            child: _LanguageEntry(
+              key: ValueKey(lang.id),
+              language: lang,
+              onChanged: model.updateLanguage,
+            ),
+          ),
+          const SizedBox(height: 14),
+        ],
+        _AddEntryButton(
+          label: 'Ajouter une langue',
+          onTap: () => model.addLanguage(Language()),
+        ),
+      ],
+    );
+  }
+}
+
+class _LanguageEntry extends StatefulWidget {
+  const _LanguageEntry({
+    super.key,
+    required this.language,
+    required this.onChanged,
+  });
+
+  final Language language;
+  final ValueChanged<Language> onChanged;
+
+  @override
+  State<_LanguageEntry> createState() => _LanguageEntryState();
+}
+
+class _LanguageEntryState extends State<_LanguageEntry> {
+  late final _name = TextEditingController(text: widget.language.name);
+  late final _level = TextEditingController(text: widget.language.level);
+
+  @override
+  void initState() {
+    super.initState();
+    for (final c in [_name, _level]) {
+      c.addListener(_push);
+    }
+  }
+
+  void _push() {
+    widget.onChanged(
+      widget.language.copyWith(name: _name.text, level: _level.text),
+    );
+  }
+
+  @override
+  void dispose() {
+    for (final c in [_name, _level]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(child: EditorField(label: 'Langue', controller: _name)),
+        const SizedBox(width: 12),
+        Expanded(child: EditorField(label: 'Niveau', controller: _level)),
+      ],
+    );
+  }
+}
+
+/// Encadre une entrée avec son intitulé et son bouton de suppression.
+class _EntryFrame extends StatelessWidget {
+  const _EntryFrame({
+    required this.label,
+    required this.onDelete,
+    required this.child,
+  });
+
+  final String label;
+  final VoidCallback onDelete;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                label.toUpperCase(),
+                style: TextStyle(
+                  fontSize: 10,
+                  letterSpacing: 1.2,
+                  fontWeight: FontWeight.w700,
+                  color: _eInk.withValues(alpha: 0.38),
+                ),
+              ),
+            ),
+            IconButton(
+              onPressed: onDelete,
+              tooltip: 'Supprimer',
+              iconSize: 18,
+              visualDensity: VisualDensity.compact,
+              icon: Icon(
+                Icons.delete_outline,
+                color: _eInk.withValues(alpha: 0.32),
+              ),
+            ),
+          ],
+        ),
+        child,
+      ],
+    );
+  }
+}
+
+class _AddEntryButton extends StatelessWidget {
+  const _AddEntryButton({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return PressScale(
+      pressedScale: 0.97,
+      onTap: onTap,
+      child: Container(
+        height: 44,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: _eAccent.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _eAccent.withValues(alpha: 0.28)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.add, size: 16, color: _eAccent),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 13,
+                color: _eAccent,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

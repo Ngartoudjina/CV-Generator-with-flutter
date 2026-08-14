@@ -6,7 +6,7 @@ l'application Android d'origine et son portage Flutter.
 | Dossier | Stack | État |
 |---|---|---|
 | [`app/`](app/) | Kotlin · Jetpack Compose | Fonctionnel, tous les écrans implémentés |
-| [`flutter_app/`](flutter_app/) | Dart · Flutter | Portage complet — analyse vierge, 32 tests au vert |
+| [`flutter_app/`](flutter_app/) | Dart · Flutter | Portage complet — analyse vierge, 33 tests au vert |
 
 Le portage Flutter a été motivé par la cible iOS : le projet Compose était
 encore assez petit pour que la réécriture soit rentable.

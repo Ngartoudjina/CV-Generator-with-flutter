@@ -81,6 +81,53 @@ void main() {
 
       expect(model.cvData.personalInfo.fullName, 'Fatou Sow');
     });
+
+    testWidgets('toutes les expériences sont éditables, pas seulement la 1re',
+        (tester) async {
+      // Un CV créé dans l'assistant avec plusieurs expériences n'en montrait
+      // qu'une dans l'éditeur : les autres restaient invisibles ici tout en
+      // figurant dans l'aperçu et le PDF.
+      final library = CvLibrary();
+      final model = CvModel()
+        ..load(
+          CvData(
+            personalInfo: const PersonalInfo(fullName: 'Fatou Sow'),
+            experiences: [
+              Experience(position: 'Développeuse', company: 'Alpha'),
+              Experience(position: 'Lead', company: 'Beta'),
+              Experience(position: 'Architecte', company: 'Gamma'),
+            ],
+          ),
+        );
+
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<CvLibrary>.value(value: library),
+            ChangeNotifierProvider<CvModel>.value(value: model),
+          ],
+          child: MaterialApp(
+            home: EditorScreen(onBack: () {}, onExport: () {}),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 600));
+
+      await tester.tap(find.text('Expérience'));
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.text('EXPÉRIENCE 1'), findsOneWidget);
+      expect(find.text('EXPÉRIENCE 3'), findsOneWidget);
+      expect(find.text('Gamma'), findsOneWidget, reason: 'la 3e est affichée');
+
+      // Modifier la troisième ne doit pas toucher les autres.
+      await tester.enterText(find.widgetWithText(TextField, 'Gamma'), 'Delta');
+      await tester.pump();
+
+      expect(model.cvData.experiences[2].company, 'Delta');
+      expect(model.cvData.experiences[0].company, 'Alpha');
+      expect(model.cvData.experiences, hasLength(3));
+    });
   });
 
   group('CvLibrary', () {

@@ -88,6 +88,16 @@ class CvModel extends ChangeNotifier {
     _update(_cvData.copyWith(languages: [..._cvData.languages, lang]));
   }
 
+  /// Absent du `CvViewModel` d'origine, qui ne proposait qu'ajout et
+  /// suppression : les langues n'étaient éditables nulle part une fois créées.
+  void updateLanguage(Language lang) {
+    _update(_cvData.copyWith(
+      languages: [
+        for (final l in _cvData.languages) l.id == lang.id ? lang : l,
+      ],
+    ));
+  }
+
   void removeLanguage(String id) {
     _update(_cvData.copyWith(
       languages: _cvData.languages.where((l) => l.id != id).toList(),

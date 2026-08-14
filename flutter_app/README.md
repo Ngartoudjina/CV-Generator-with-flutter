@@ -9,7 +9,7 @@ en dehors de ce dossier.
 Portage complet et **vérifié** avec Flutter 3.44.9 / Dart 3.12.2 :
 
 - `flutter analyze` — aucune remontée
-- `flutter test` — 32 tests au vert
+- `flutter test` — 33 tests au vert
 - Plateformes générées : `android/`, `ios/`, `web/`
 
 ## Démarrer
@@ -105,6 +105,14 @@ honnête, là où « 92 » était inventé. Un CV sous 70 est un brouillon.
 passage en arrière-plan. Trois cas distincts : rien d'enregistré (l'exemple
 apparaît), liste vide (l'utilisateur a tout supprimé, l'exemple ne revient
 pas), contenu illisible (mis de côté, jamais écrasé).
+
+**Sections à entrées multiples** — l'éditeur n'affichait que la *première*
+expérience et la *première* formation. Un CV créé dans l'assistant avec trois
+expériences n'en montrait qu'une : les autres étaient invisibles et
+inéditables, tout en figurant dans l'aperçu et le PDF. Les sections listent
+désormais toutes les entrées, avec ajout et suppression. Une section
+**Langues** a été ajoutée : le modèle les porte, l'assistant les saisit et le
+score leur accorde 10 points, mais l'éditeur ne savait pas les afficher.
 
 **Renommage** — `CvLibrary.rename` existait sans être appelé nulle part : tous
 les CV créés s'appelaient « Nouveau CV » et devenaient indiscernables. Le titre
