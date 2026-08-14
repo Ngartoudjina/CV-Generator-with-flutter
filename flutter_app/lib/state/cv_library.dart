@@ -41,7 +41,7 @@ class CvLibrary extends ChangeNotifier {
   }
 
   /// Crée un CV vierge et le désigne comme courant. Renvoie son identifiant.
-  String createNew({String title = 'Nouveau CV'}) {
+  String createNew({String title = defaultTitle}) {
     final doc = CvDocument(
       title: title,
       data: const CvData(),
@@ -61,6 +61,9 @@ class CvLibrary extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Titre donné à un CV tant que l'utilisateur n'en a pas choisi un.
+  static const String defaultTitle = 'Nouveau CV';
+
   /// Enregistre le contenu de la copie de travail dans le document courant.
   /// Sans effet si le contenu est inchangé, pour éviter une cascade de
   /// notifications à chaque frappe.
@@ -71,11 +74,26 @@ class CvLibrary extends ChangeNotifier {
     _documents = [
       for (final d in _documents)
         if (d.id == doc.id)
-          d.copyWith(data: data, updatedAt: DateTime.now())
+          d.copyWith(
+            data: data,
+            title: _autoTitle(d.title, data),
+            updatedAt: DateTime.now(),
+          )
         else
           d,
     ];
     notifyListeners();
+  }
+
+  /// Sans cela, tous les CV créés depuis le tableau de bord resteraient
+  /// « Nouveau CV » et seraient indiscernables dans la liste.
+  ///
+  /// La règle ne s'applique que tant que le titre est celui par défaut : dès
+  /// que l'utilisateur en choisit un via [rename], il n'est plus touché.
+  String _autoTitle(String currentTitle, CvData data) {
+    if (currentTitle != defaultTitle) return currentTitle;
+    final job = data.personalInfo.jobTitle.trim();
+    return job.isEmpty ? currentTitle : 'CV $job';
   }
 
   void rename(String id, String title) {

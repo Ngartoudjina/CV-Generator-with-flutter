@@ -35,12 +35,16 @@ class StepProgressBar extends StatelessWidget {
           (isCompleted || isCurrent) ? AppColors.gold : AppColors.mediumGray;
 
       children.add(
-        Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            GestureDetector(
-              onTap: () => onStepClick(index),
-              child: Container(
+        // Le cercle et son libellé forment une seule cible tactile. La version
+        // Compose ne rendait cliquable que le cercle de 32 px, sous le minimum
+        // recommandé de 48 px et sans rapport avec la zone perçue.
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => onStepClick(index),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
                 width: 32,
                 height: 32,
                 alignment: Alignment.center,
@@ -56,17 +60,17 @@ class StepProgressBar extends StatelessWidget {
                   ),
                 ),
               ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              index < stepLabels.length ? stepLabels[index] : '',
-              style: TextStyle(
-                fontSize: 9,
-                color: isCurrent ? AppColors.gold : scheme.onSurfaceVariant,
-                fontWeight: isCurrent ? FontWeight.w600 : FontWeight.normal,
+              const SizedBox(height: 4),
+              Text(
+                index < stepLabels.length ? stepLabels[index] : '',
+                style: TextStyle(
+                  fontSize: 9,
+                  color: isCurrent ? AppColors.gold : scheme.onSurfaceVariant,
+                  fontWeight: isCurrent ? FontWeight.w600 : FontWeight.normal,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       );
 

@@ -220,6 +220,50 @@ class _EditorScreenState extends State<EditorScreen> {
     }
   }
 
+  /// Renomme le CV ouvert.
+  ///
+  /// `CvLibrary.rename` existait sans être appelé nulle part : tous les CV
+  /// créés depuis le tableau de bord s'appelaient « Nouveau CV », impossible
+  /// de les distinguer dans la liste.
+  Future<void> _renameDocument() async {
+    final library = context.read<CvLibrary>();
+    final doc = library.current;
+    if (doc == null) return;
+
+    final controller = TextEditingController(text: doc.title);
+    final newTitle = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Renommer le CV'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Titre',
+            hintText: 'CV Développeur, CV Alternance…',
+          ),
+          onSubmitted: (v) => Navigator.pop(dialogContext, v),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Annuler'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, controller.text),
+            child: const Text('Renommer'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+
+    final trimmed = newTitle?.trim() ?? '';
+    if (trimmed.isNotEmpty && trimmed != doc.title) {
+      library.rename(doc.id, trimmed);
+    }
+  }
+
   /// Le Compose d'origine passait de IDLE à THINKING sans jamais retomber ;
   /// on garde la même intention en enchaînant THINKING → DONE → IDLE.
   void _runAi() {
@@ -258,6 +302,7 @@ class _EditorScreenState extends State<EditorScreen> {
                           'Nouveau CV',
                       score: context.watch<CvLibrary>().current?.score ?? 0,
                       onBack: widget.onBack,
+                      onRename: _renameDocument,
                       onModeChange: (p) => setState(() => _isPreview = p),
                     ),
                   ),
@@ -382,6 +427,7 @@ class _DarkHeader extends StatelessWidget {
     required this.headerVisible,
     required this.title,
     required this.score,
+    required this.onRename,
     required this.isPreview,
     required this.onBack,
     required this.onModeChange,
@@ -390,6 +436,7 @@ class _DarkHeader extends StatelessWidget {
   final bool headerVisible;
   final String title;
   final int score;
+  final VoidCallback onRename;
   final bool isPreview;
   final VoidCallback onBack;
   final ValueChanged<bool> onModeChange;
@@ -440,28 +487,39 @@ class _DarkHeader extends StatelessWidget {
                   Expanded(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 10),
-                      child: Row(
-                        children: [
-                          Image.asset(
-                            'assets/images/logo_icon.png',
-                            width: 24,
-                            height: 24,
-                            fit: BoxFit.contain,
-                          ),
-                          const SizedBox(width: 8),
-                          Flexible(
-                            child: Text(
-                              title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: _eWhite,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: onRename,
+                        child: Row(
+                          children: [
+                            Image.asset(
+                              'assets/images/logo_icon.png',
+                              width: 24,
+                              height: 24,
+                              fit: BoxFit.contain,
+                            ),
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: _eWhite,
+                                ),
                               ),
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 6),
+                            // Indice discret : le titre est modifiable.
+                            Icon(
+                              Icons.edit_outlined,
+                              size: 14,
+                              color: _eWhite.withValues(alpha: 0.45),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),

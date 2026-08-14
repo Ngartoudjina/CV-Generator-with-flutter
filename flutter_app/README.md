@@ -9,7 +9,7 @@ en dehors de ce dossier.
 Portage complet et **vérifié** avec Flutter 3.44.9 / Dart 3.12.2 :
 
 - `flutter analyze` — aucune remontée
-- `flutter test` — 21 tests au vert
+- `flutter test` — 32 tests au vert
 - Plateformes générées : `android/`, `ios/`, `web/`
 
 ## Démarrer
@@ -105,6 +105,12 @@ honnête, là où « 92 » était inventé. Un CV sous 70 est un brouillon.
 passage en arrière-plan. Trois cas distincts : rien d'enregistré (l'exemple
 apparaît), liste vide (l'utilisateur a tout supprimé, l'exemple ne revient
 pas), contenu illisible (mis de côté, jamais écrasé).
+
+**Renommage** — `CvLibrary.rename` existait sans être appelé nulle part : tous
+les CV créés s'appelaient « Nouveau CV » et devenaient indiscernables. Le titre
+est modifiable en le touchant dans l'en-tête de l'éditeur, et tant qu'il reste
+celui par défaut il suit le poste saisi (« CV Product Designer »). Dès qu'un
+titre est choisi, il n'est plus touché.
 
 **Onglets** — l'onglet Profil existe pour de bon
 ([profile_screen.dart](lib/screens/profile_screen.dart)) : identité dérivée

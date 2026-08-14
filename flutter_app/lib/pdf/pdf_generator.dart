@@ -1,5 +1,8 @@
 import 'dart:typed_data';
 
+// `package:meta` plutôt que `flutter/foundation` : ce fichier n'a aucune
+// dépendance à Flutter, ce qui le rend exécutable en Dart pur.
+import 'package:meta/meta.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
@@ -273,6 +276,12 @@ class PdfGenerator {
 
   /// Part remplie de la barre, exprimée en centièmes — `flex` n'accepte que
   /// des entiers. Bornée à [1, 100] pour qu'un niveau nul reste visible.
+  ///
+  /// Exposée pour les tests : c'est le seul calcul de la mise en page PDF qui
+  /// se vérifie sans inspecter le document produit.
+  @visibleForTesting
+  static int filledFlexFor(SkillLevel level) => _filledFlex(level.value);
+
   static int _filledFlex(double level) => (level * 100).round().clamp(1, 100);
 
   static pw.Widget _skillBar(Skill skill) {

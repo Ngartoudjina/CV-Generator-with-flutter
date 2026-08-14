@@ -25,6 +25,10 @@ dependencies:
   pdf: ^3.11.1
   printing: ^5.13.2
 
+  # Annotations (@visibleForTesting) sans dépendre de flutter/foundation, ce
+  # qui garde pdf_generator.dart exécutable en Dart pur.
+  meta: ^1.15.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

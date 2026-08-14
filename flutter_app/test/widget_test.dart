@@ -1,6 +1,7 @@
 import 'package:cvgenerator/app.dart';
 import 'package:cvgenerator/models/cv_data.dart';
 import 'package:cvgenerator/models/cv_document.dart';
+import 'package:cvgenerator/screens/cv_wizard_screen.dart';
 import 'package:cvgenerator/screens/dashboard_screen.dart';
 import 'package:cvgenerator/screens/editor_screen.dart';
 import 'package:cvgenerator/state/cv_library.dart';
@@ -123,6 +124,80 @@ void main() {
       final before = library.currentId;
       library.open('identifiant-inexistant');
       expect(library.currentId, before);
+    });
+
+    test('le titre par défaut suit le poste, un titre choisi ne bouge plus',
+        () {
+      final library = CvLibrary()..createNew();
+      expect(library.current!.title, CvLibrary.defaultTitle);
+
+      // Tant que le titre est celui par défaut, il suit le poste saisi —
+      // sinon tous les CV créés resteraient indiscernables dans la liste.
+      library.updateCurrent(
+        const CvData(personalInfo: PersonalInfo(jobTitle: 'Product Designer')),
+      );
+      expect(library.current!.title, 'CV Product Designer');
+
+      // Une fois renommé explicitement, il est laissé tranquille.
+      library.rename(library.currentId!, 'CV Alternance');
+      library.updateCurrent(
+        const CvData(personalInfo: PersonalInfo(jobTitle: 'Autre chose')),
+      );
+      expect(library.current!.title, 'CV Alternance');
+    });
+  });
+
+  group('Assistant de création', () {
+    Widget wizard(CvModel model) => MultiProvider(
+          providers: [
+            ChangeNotifierProvider<CvLibrary>(create: (_) => CvLibrary()),
+            ChangeNotifierProvider<CvModel>.value(value: model),
+          ],
+          child: MaterialApp(home: CvWizardScreen(onBack: () {})),
+        );
+
+    testWidgets('l\'étape Identité bloque tant qu\'elle est incomplète',
+        (tester) async {
+      final model = CvModel();
+      await tester.pumpWidget(wizard(model));
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.text('Étape 1 / 5'), findsOneWidget);
+
+      // « Suivant » est désactivé : nom, titre et email sont vides.
+      final next = tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, 'Suivant'),
+      );
+      expect(next.onPressed, isNull);
+
+      // Cliquer une pastille plus loin est refusé, avec une explication.
+      await tester.tap(find.text('Compétences'));
+      await tester.pump(); // déclenche le SnackBar
+      await tester.pump(const Duration(milliseconds: 400)); // le fait entrer
+
+      expect(find.textContaining('pour continuer'), findsOneWidget);
+      expect(model.currentStep, 0);
+    });
+
+    testWidgets('une fois l\'identité remplie, la navigation se débloque',
+        (tester) async {
+      final model = CvModel()
+        ..updatePersonalInfo(
+          const PersonalInfo(
+            fullName: 'Fatou Sow',
+            jobTitle: 'Designer',
+            email: 'f@example.com',
+          ),
+        );
+
+      await tester.pumpWidget(wizard(model));
+      await tester.pump(const Duration(milliseconds: 400));
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Suivant'));
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(model.currentStep, 1);
+      expect(find.text('Étape 2 / 5'), findsOneWidget);
     });
   });
 
