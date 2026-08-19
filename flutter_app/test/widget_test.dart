@@ -355,15 +355,39 @@ void main() {
       await tester.pump();
       expect(signedOut, isTrue);
     });
-
-    testWidgets('les onglets sans implémentation le disent', (tester) async {
+    testWidgets("L'onglet Modeles propose et applique une police",
+        (tester) async {
+      // L'onglet existait dans la maquette mais restait vide. Il porte
+      // desormais le choix de police du document.
       await tester.pumpWidget(dashboard());
       await tester.pump(const Duration(milliseconds: 900));
 
-      // La maquette ne garde que trois onglets : l'onglet « IA » a disparu.
       await tester.tap(find.text('MODÈLES'));
       await tester.pump(const Duration(milliseconds: 400));
-      expect(find.textContaining('pas encore implémentée'), findsOneWidget);
+
+      expect(find.text('POLICE DU DOCUMENT'), findsOneWidget);
+
+      // La première proposition est visible ; les suivantes demandent un
+      // défilement, la liste étant paresseuse.
+      expect(find.text('Inter'), findsOneWidget);
+
+      await tester.scrollUntilVisible(
+        find.text('Lora'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('Lora'), findsOneWidget);
+
+      // Et il est dit clairement que cela ne change pas le score ATS.
+      await tester.scrollUntilVisible(
+        find.textContaining("n'influence pas le score ATS"),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(
+        find.textContaining("n'influence pas le score ATS"),
+        findsOneWidget,
+      );
     });
   });
 

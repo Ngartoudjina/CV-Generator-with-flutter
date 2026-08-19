@@ -5,6 +5,7 @@ import '../models/cv_document.dart';
 import '../state/cv_library.dart';
 import '../theme/design_tokens.dart';
 import 'profile_screen.dart';
+import 'templates_screen.dart';
 
 /// « Mes CV » — `maquettes/04_mes-cv.jpg`.
 ///
@@ -68,11 +69,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       body: SafeArea(
         bottom: false,
         child: switch (_tab) {
-          1 => const _PlaceholderTab(
-              title: 'Modèles',
-              message: "La galerie de modèles n'est pas encore implémentée. "
-                  "L'export utilise pour l'instant une mise en page unique.",
-            ),
+          1 => const TemplatesScreen(),
           2 => ProfileScreen(
               onSignOut: widget.onSignOut,
               onReplayOnboarding: widget.onReplayOnboarding,
@@ -550,30 +547,6 @@ class _BottomNav extends StatelessWidget {
                 ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PlaceholderTab extends StatelessWidget {
-  const _PlaceholderTab({required this.title, required this.message});
-
-  final String title;
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: Space.xxxl),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(title, style: Serif.title),
-            const SizedBox(height: Space.lg),
-            Text(message, textAlign: TextAlign.center, style: Sans.body),
-          ],
         ),
       ),
     );

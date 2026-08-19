@@ -44,8 +44,28 @@ class PdfGenerator {
   /// fichier parce que `Intent.ACTION_VIEW` exigeait une URI de FileProvider.
   /// `Printing.sharePdf` prend les octets directement, ce qui supprime la
   /// dépendance à `dart:io` — et donc rend la cible web compilable.
-  static Future<Uint8List> build(CvData cvData) async {
-    final doc = pw.Document();
+  ///
+  /// [base] est la police du document, chargée par l'appelant depuis les
+  /// ressources. Quand elle est fournie, le PDF cesse de dépendre de
+  /// l'Helvetica intégrée et de son encodage WinAnsi — qui **levait une
+  /// exception** sur tout caractère hors de ce jeu. Avec une police
+  /// embarquée, l'Unicode passe.
+  ///
+  /// Le paquet `pdf` ne synthétise pas le gras : sans fichier Bold séparé,
+  /// [bold] retombe sur [base]. Les intitulés restent distingués par leur
+  /// couleur, plus sombre que le corps. Les familles retenues ne sont
+  /// publiées qu'en fichier variable, dont le paquet ne sait extraire que
+  /// l'instance Regular.
+  static Future<Uint8List> build(
+    CvData cvData, {
+    pw.Font? base,
+    pw.Font? bold,
+  }) async {
+    final doc = pw.Document(
+      theme: base == null
+          ? null
+          : pw.ThemeData.withFont(base: base, bold: bold ?? base),
+    );
     final info = cvData.personalInfo;
 
     doc.addPage(

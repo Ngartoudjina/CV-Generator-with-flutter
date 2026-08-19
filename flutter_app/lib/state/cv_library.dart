@@ -96,6 +96,18 @@ class CvLibrary extends ChangeNotifier {
     return job.isEmpty ? currentTitle : 'CV $job';
   }
 
+  /// Change la police du document — onglet Modèles.
+  void setFont(String id, String fontFamily) {
+    _documents = [
+      for (final d in _documents)
+        if (d.id == id)
+          d.copyWith(fontFamily: fontFamily, updatedAt: DateTime.now())
+        else
+          d,
+    ];
+    notifyListeners();
+  }
+
   void rename(String id, String title) {
     _documents = [
       for (final d in _documents)

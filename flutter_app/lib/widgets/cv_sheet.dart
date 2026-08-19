@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/cv_data.dart';
+import '../models/cv_font.dart';
 import '../models/cv_section.dart';
 import '../theme/design_tokens.dart';
 
@@ -12,10 +13,23 @@ import '../theme/design_tokens.dart';
 /// bas d'écran se voie immédiatement en haut — ce que l'accordéon du portage
 /// rendait impossible.
 class CvSheet extends StatelessWidget {
-  const CvSheet({super.key, required this.data, this.highlighted});
+  const CvSheet({
+    super.key,
+    required this.data,
+    this.highlighted,
+    this.font = CvFont.inter,
+  });
 
   final CvData data;
   final CvSection? highlighted;
+
+  /// Police du document, choisie dans l'onglet Modèles.
+  ///
+  /// Elle habille le **contenu** — nom, intitulés, corps. Les libellés de
+  /// structure (dates, sur-titres de section) restent en monospace : c'est la
+  /// signature de la maquette, et elle s'accorde à toutes les familles de la
+  /// gamme. Choisir « JetBrains Mono » unifie simplement les deux.
+  final CvFont font;
 
   @override
   Widget build(BuildContext context) {
@@ -46,7 +60,8 @@ class CvSheet extends StatelessWidget {
               children: [
                 Text(
                   info.fullName.trim().isEmpty ? 'Votre nom' : info.fullName,
-                  style: Serif.name.copyWith(fontSize: 21),
+                  style: Serif.name
+                      .copyWith(fontSize: 21, fontFamily: font.family),
                 ),
                 if (info.jobTitle.trim().isNotEmpty) ...[
                   const SizedBox(height: 2),
@@ -63,7 +78,7 @@ class CvSheet extends StatelessWidget {
               label: 'PROFIL',
               section: CvSection.profil,
               highlighted: highlighted,
-              children: [SheetBullet(info.summary)],
+              children: [SheetBullet(info.summary, family: font.family)],
             ),
             const SizedBox(height: Space.md),
           ],
@@ -78,7 +93,7 @@ class CvSheet extends StatelessWidget {
                     [e.position, e.company]
                         .where((s) => s.trim().isNotEmpty)
                         .join(' — '),
-                    style: Sans.entryTitle,
+                    style: Sans.entryTitle.copyWith(fontFamily: font.family),
                   ),
                   if (e.period.isNotEmpty) ...[
                     const SizedBox(height: 1),
@@ -86,7 +101,7 @@ class CvSheet extends StatelessWidget {
                   ],
                   if (e.description.trim().isNotEmpty) ...[
                     const SizedBox(height: Space.xs),
-                    SheetBullet(e.description),
+                    SheetBullet(e.description, family: font.family),
                   ],
                   const SizedBox(height: Space.sm),
                 ],
@@ -101,7 +116,7 @@ class CvSheet extends StatelessWidget {
               children: [
                 Text(
                   data.skills.map((s) => s.name).join(' · '),
-                  style: Sans.sheetBody,
+                  style: Sans.sheetBody.copyWith(fontFamily: font.family),
                 ),
               ],
             ),
@@ -134,7 +149,7 @@ class CvSheet extends StatelessWidget {
                   data.languages
                       .map((l) => '${l.name} · ${l.level}')
                       .join('   '),
-                  style: Sans.sheetBody,
+                  style: Sans.sheetBody.copyWith(fontFamily: font.family),
                 ),
               ],
             ),
@@ -148,9 +163,10 @@ class CvSheet extends StatelessWidget {
 /// Puce de document : un tiret gris clair, jamais un point médian. C'est ce
 /// détail qui distingue une feuille de CV d'une liste d'interface.
 class SheetBullet extends StatelessWidget {
-  const SheetBullet(this.text, {super.key});
+  const SheetBullet(this.text, {super.key, this.family});
 
   final String text;
+  final String? family;
 
   @override
   Widget build(BuildContext context) {
@@ -163,7 +179,9 @@ class SheetBullet extends StatelessWidget {
             padding: const EdgeInsets.only(top: 1, right: Space.sm),
             child: Text('–', style: Sans.sheetBody.copyWith(color: Pen.faint)),
           ),
-          Expanded(child: Text(text, style: Sans.sheetBody)),
+          Expanded(
+              child: Text(text,
+                  style: Sans.sheetBody.copyWith(fontFamily: family))),
         ],
       ),
     );

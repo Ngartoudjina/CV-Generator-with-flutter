@@ -8,8 +8,10 @@ import 'package:flutter/material.dart';
 ///
 /// Trois familles de caractères, chacune avec un rôle strict :
 ///
-/// * **Playfair Display** — titres uniquement. Serif à fort contraste, c'est
-///   lui qui donne le ton éditorial.
+/// * **Fraunces** — titres uniquement. Serif variable de 2020, dont les axes
+///   « soft » et « wonk » donnent un dessin vivant, légèrement irrégulier.
+///   Choisi contre Playfair Display, qui portait la maquette mais reste l'une
+///   des polices les plus vues du web : élégante et sans signature.
 /// * **JetBrains Mono** — toute la métadonnée d'interface : sur-titres, dates,
 ///   compteurs, badges, libellés de section. C'est l'emploi du monospace comme
 ///   signal, et non comme police de code, qui fait le caractère de la maquette.
@@ -80,7 +82,7 @@ abstract final class Status {
 // ── Typographie ──────────────────────────────────────────────────────────
 
 abstract final class Serif {
-  static const String family = 'PlayfairDisplay';
+  static const String family = 'Fraunces';
 
   /// Titre d'accroche — « Le CV qui vous fait remarquer. »
   static const TextStyle display = TextStyle(

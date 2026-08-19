@@ -3,7 +3,10 @@ import 'dart:convert';
 import 'package:cvgenerator/models/cv_data.dart';
 import 'package:cvgenerator/pdf/pdf_generator.dart';
 import 'package:cvgenerator/state/cv_library.dart';
+import 'package:cvgenerator/models/cv_font.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pdf/widgets.dart' as pw;
 
 /// `PdfGenerator` est la seule partie réellement réécrite du portage (canvas
 /// Android → widgets du package `pdf`), et la plus silencieuse en cas de
@@ -11,6 +14,8 @@ import 'package:flutter_test/flutter_test.dart';
 ///
 /// Ces tests vérifient la structure du document produit, pas son apparence.
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   /// Un PDF valide commence par `%PDF-` et se termine par `%%EOF`.
   void expectValidPdf(List<int> bytes) {
     expect(bytes.length, greaterThan(1000), reason: 'document non vide');
@@ -129,6 +134,45 @@ void main() {
       expect(PdfGenerator.filledFlexFor(SkillLevel.intermediate), 50);
       expect(PdfGenerator.filledFlexFor(SkillLevel.advanced), 75);
       expect(PdfGenerator.filledFlexFor(SkillLevel.expert), 100);
+    });
+  });
+
+  group('Police embarquée', () {
+    /// Le vrai gain du choix de police : sans elle, le PDF s'appuie sur
+    /// l'Helvetica intégrée et son encodage WinAnsi, qui lève sur tout
+    /// caractère hors jeu. Avec une police embarquée, l'Unicode passe.
+    test('les caracteres hors WinAnsi ne font plus echouer la generation',
+        () async {
+      final data = await rootBundle.load(CvFont.lora.asset);
+      final bytes = await PdfGenerator.build(
+        const CvData(
+          personalInfo: PersonalInfo(
+            fullName: 'Zoe Nguyen',
+            jobTitle: 'Ingenieure - R&D',
+            email: 'z@example.com',
+            summary: 'Resultats mesures : +32 %.',
+          ),
+        ),
+        base: pw.Font.ttf(data),
+      );
+      expectValidPdf(bytes);
+    });
+
+    test('chaque police de la gamme produit un PDF valide', () async {
+      for (final f in CvFont.values) {
+        final data = await rootBundle.load(f.asset);
+        final bytes = await PdfGenerator.build(
+          const CvData(
+            personalInfo: PersonalInfo(
+              fullName: 'Amina Diallo',
+              jobTitle: 'Developpeuse',
+              email: 'a@example.com',
+            ),
+          ),
+          base: pw.Font.ttf(data),
+        );
+        expectValidPdf(bytes);
+      }
     });
   });
 

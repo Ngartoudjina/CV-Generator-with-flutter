@@ -48,12 +48,25 @@ flutter:
   # sans-serif pour le corps. Fichiers variables embarqués plutôt que le
   # paquet google_fonts, qui les télécharge au premier affichage.
   fonts:
+    # Interface
+    - family: Fraunces
+      fonts:
+        - asset: assets/fonts/Fraunces-Variable.ttf
     - family: Inter
       fonts:
         - asset: assets/fonts/Inter-Variable.ttf
-    - family: PlayfairDisplay
-      fonts:
-        - asset: assets/fonts/PlayfairDisplay-Variable.ttf
     - family: JetBrainsMono
       fonts:
         - asset: assets/fonts/JetBrainsMono-Variable.ttf
+
+    # Gamme proposée pour le CV lui-même (onglet Modèles). Inter et
+    # JetBrains Mono, déjà présentes, en font aussi partie.
+    - family: SourceSerif4
+      fonts:
+        - asset: assets/fonts/SourceSerif4-Variable.ttf
+    - family: Lora
+      fonts:
+        - asset: assets/fonts/Lora-Variable.ttf
+    - family: IBMPlexSans
+      fonts:
+        - asset: assets/fonts/IBMPlexSans-Variable.ttf

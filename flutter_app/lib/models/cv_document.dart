@@ -16,6 +16,7 @@ class CvDocument {
     this.targetRole = '',
     this.templateName = 'Ravel',
     this.version = 1,
+    this.fontFamily = 'Inter',
   }) : id = id ?? _newId();
 
   final String id;
@@ -36,6 +37,11 @@ class CvDocument {
   /// Numéro de version, affiché dans l'éditeur (« OVALIS · V3 »).
   final int version;
 
+  /// Police du document, choisie dans l'onglet Modèles. Stockée par nom de
+  /// famille plutôt que par index : réordonner la gamme ne doit pas changer
+  /// l'apparence des CV déjà enregistrés.
+  final String fontFamily;
+
   CvDocument copyWith({
     String? title,
     CvData? data,
@@ -43,6 +49,7 @@ class CvDocument {
     String? targetRole,
     String? templateName,
     int? version,
+    String? fontFamily,
   }) {
     return CvDocument(
       id: id,
@@ -52,6 +59,7 @@ class CvDocument {
       targetRole: targetRole ?? this.targetRole,
       templateName: templateName ?? this.templateName,
       version: version ?? this.version,
+      fontFamily: fontFamily ?? this.fontFamily,
     );
   }
 
@@ -141,6 +149,7 @@ class CvDocument {
         'targetRole': targetRole,
         'templateName': templateName,
         'version': version,
+        'fontFamily': fontFamily,
         'data': _cvDataToJson(data),
       };
 
@@ -154,6 +163,7 @@ class CvDocument {
         targetRole: json['targetRole'] as String? ?? '',
         templateName: json['templateName'] as String? ?? 'Ravel',
         version: json['version'] as int? ?? 1,
+        fontFamily: json['fontFamily'] as String? ?? 'Inter',
         data: _cvDataFromJson(json['data'] as Map<String, dynamic>),
       );
 }

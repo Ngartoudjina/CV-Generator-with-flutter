@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'models/cv_data.dart';
+import 'models/cv_font.dart';
 import 'screens/auth_screen.dart';
 import 'screens/cv_wizard_screen.dart';
 import 'screens/dashboard_screen.dart';
@@ -196,8 +197,11 @@ class _AppNavigatorState extends State<AppNavigator>
 
   /// Port de `MainActivity.exportPdf()` — l'implémentation vit dans
   /// [exportCvPdf], partagée avec l'assistant.
-  Future<void> _exportPdf() =>
-      exportCvPdf(context, context.read<CvModel>().cvData);
+  Future<void> _exportPdf() => exportCvPdf(
+        context,
+        _model.cvData,
+        font: CvFont.fromFamily(_library.current?.fontFamily),
+      );
 
   @override
   Widget build(BuildContext context) {

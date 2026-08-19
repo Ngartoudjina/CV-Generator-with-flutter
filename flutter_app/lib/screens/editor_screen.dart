@@ -7,6 +7,7 @@ import '../state/cv_model.dart';
 import '../theme/design_tokens.dart';
 import '../widgets/cv_sheet.dart';
 import '../widgets/editor_fields.dart';
+import '../models/cv_font.dart';
 import '../models/cv_section.dart';
 
 /// Éditeur — `maquettes/05_editeur.jpg`.
@@ -76,7 +77,11 @@ class _EditorScreenState extends State<EditorScreen> {
                       padding: const EdgeInsets.symmetric(
                         horizontal: Space.xxxl,
                       ),
-                      child: CvSheet(data: data, highlighted: _open),
+                      child: CvSheet(
+                        data: data,
+                        highlighted: _open,
+                        font: CvFont.fromFamily(doc?.fontFamily),
+                      ),
                     ),
                   ),
                 ),
