@@ -2,21 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../theme/colors.dart';
-import '../utils/anim.dart';
+import '../theme/design_tokens.dart';
 
-/// Port de `ui/screens/WelcomeScreen.kt`.
-const Color _wBg = Color(0xFF0D0920);
-const Color _wBgMid = Color(0xFF180C30);
-const Color _wInk = Color(0xFFEFEBFF);
-const Color _wInkSub = Color(0xFFBBB0D8);
-const Color _wAccent = AppColors.accent;
-
-/// Hauteur nécessaire pour afficher tout l'écran sans le comprimer.
-/// Au-delà, les blocs sont répartis comme dans la version Compose ; en deçà,
-/// l'écran défile plutôt que de rogner le contenu.
-const double _spreadThreshold = 700;
-
+/// Écran d'accueil — `maquettes/01_accueil.jpg`.
+///
+/// Rupture complète avec le portage Compose (violet sombre, glassmorphisme,
+/// blobs animés). La maquette est éditoriale : fond crème, titre serif, un
+/// seul accent rouge, et une démonstration « avant → après » présentée comme
+/// une vraie feuille de CV plutôt que comme une carte d'interface.
 class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({
     super.key,
@@ -31,27 +24,19 @@ class WelcomeScreen extends StatefulWidget {
   State<WelcomeScreen> createState() => _WelcomeScreenState();
 }
 
-class _WelcomeScreenState extends State<WelcomeScreen>
-    with TickerProviderStateMixin {
+class _WelcomeScreenState extends State<WelcomeScreen> {
+  /// Le mot qui change était déjà dans la version Compose, et « remarquer »
+  /// est celui que fige la maquette. On le conserve : c'est la seule
+  /// animation de l'écran, et elle porte la promesse du produit.
   static const _words = ['remarquer', 'recruter', 'choisir', 'embaucher'];
 
   int _wordIndex = 0;
-  int _targetScore = 0;
-  Timer? _scoreTimer;
   Timer? _wordTimer;
-
-  late final AnimationController _blobs = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 9000),
-  )..repeat(reverse: true);
 
   @override
   void initState() {
     super.initState();
-    _scoreTimer = Timer(const Duration(milliseconds: 350), () {
-      if (mounted) setState(() => _targetScore = 94);
-    });
-    _wordTimer = Timer.periodic(const Duration(milliseconds: 2800), (_) {
+    _wordTimer = Timer.periodic(const Duration(milliseconds: 3200), (_) {
       if (mounted) {
         setState(() => _wordIndex = (_wordIndex + 1) % _words.length);
       }
@@ -60,307 +45,152 @@ class _WelcomeScreenState extends State<WelcomeScreen>
 
   @override
   void dispose() {
-    _scoreTimer?.cancel();
     _wordTimer?.cancel();
-    _blobs.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: DecoratedBox(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [_wBg, _wBgMid, _wBg],
-          ),
-        ),
-        child: Stack(
+      backgroundColor: Paper.bg,
+      body: SafeArea(
+        child: Column(
           children: [
-            // ── Blobs de dégradé animés ────────────────────────
-            Positioned.fill(
-              child: AnimatedBuilder(
-                animation: _blobs,
-                builder: (context, _) => CustomPaint(
-                  painter: _BlobPainter(progress: _blobs.value),
-                ),
+            // ── Barre de titre ────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                Space.xl,
+                Space.md,
+                Space.xl,
+                0,
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('CV GENERATOR', style: Mono.overline),
+                  GestureDetector(
+                    onTap: widget.onLogin,
+                    behavior: HitTestBehavior.opaque,
+                    child: Text(
+                      'CONNEXION',
+                      style: Mono.overline.copyWith(color: Pen.primary),
+                    ),
+                  ),
+                ],
               ),
             ),
 
-            SafeArea(
-              child: StaggerBuilder(
-                count: 8,
-                startDelay: const Duration(milliseconds: 100),
-                stepDelay: const Duration(milliseconds: 85),
-                builder: (context, vis) {
-                  // L'écran est dense : sur une hauteur réduite (petit
-                  // téléphone, fenêtre redimensionnée) un Column en
-                  // spaceBetween déborde et rogne le contenu — la version
-                  // Compose avait le même défaut.
-                  //
-                  // On choisit donc la stratégie explicitement selon la place
-                  // disponible (voir le LayoutBuilder plus bas). Les recettes
-                  // habituelles ont été écartées : IntrinsicHeight sous-mesure
-                  // de 44 px, car les widgets animés d'ici (AnimatedSwitcher,
-                  // Transform) ne reportent pas correctement leur hauteur
-                  // intrinsèque, et SliverFillRemaining borne malgré tout le
-                  // Column à la hauteur de la fenêtre.
-                  final blocks = <Widget>[
-                    // ── Barre supérieure ───────────────────
-                    EntranceItem(
-                      visible: vis[0],
-                      fromY: -22,
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 20),
+            Expanded(
+              child: Stack(
+                children: [
+                  ListView(
+                    padding: const EdgeInsets.only(bottom: 300),
+                    children: [
+                      const SizedBox(height: Space.xxl),
+
+                      // ── Accroche ──────────────────────────────
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: Space.xl,
+                        ),
+                        child: _Headline(word: _words[_wordIndex]),
+                      ),
+
+                      const SizedBox(height: Space.xl),
+
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: Space.xl,
+                        ),
+                        child: Text(
+                          "Décrivez votre parcours en langage courant.\n"
+                          "L'IA le réécrit en lignes précises, quantifiées et "
+                          'lisibles par les filtres ATS.',
+                          style: Sans.body.copyWith(height: 1.6),
+                        ),
+                      ),
+
+                      const SizedBox(height: Space.xxl),
+                      const Divider(color: Paper.rule, height: 1),
+                      const SizedBox(height: Space.lg),
+
+                      // ── Étiquettes de la démonstration ────────
+                      const Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: Space.xl,
+                        ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Image.asset(
-                              'assets/images/logo_icon.png',
-                              width: 52,
-                              height: 52,
-                              fit: BoxFit.contain,
-                            ),
-                            _LoginPill(onTap: widget.onLogin),
+                            Text('AVANT → APRÈS', style: Mono.overline),
+                            Text('EXPÉRIENCE · LIGNE 3', style: Mono.overline),
                           ],
                         ),
                       ),
-                    ),
 
-                    // ── Bloc titre ─────────────────────────
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      const SizedBox(height: Space.md),
+
+                      // ── Feuille de CV ─────────────────────────
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: Space.xl),
+                        child: _DemoSheet(),
+                      ),
+                    ],
+                  ),
+
+                  // Le bas de la feuille se fond dans le crème : la maquette
+                  // la laisse volontairement coupée, pour suggérer la suite
+                  // sans la montrer.
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    height: 190,
+                    child: IgnorePointer(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Paper.bg.withValues(alpha: 0),
+                              Paper.bg.withValues(alpha: 0.85),
+                              Paper.bg,
+                            ],
+                            stops: const [0, 0.35, 0.6],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // ── Appel à l'action + mention ────────────────
+                  Positioned(
+                    left: Space.xl,
+                    right: Space.xl,
+                    bottom: Space.lg,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        EntranceItem(
-                          visible: vis[1],
-                          fromY: 18,
-                          fromScale: 0.90,
-                          child: const Align(
-                            alignment: Alignment.centerLeft,
-                            child: _GradientBadge(
-                              '✦  GÉNÉRATEUR DE CV · IA',
-                            ),
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(Radii.md),
+                            boxShadow: Shadow.floating,
+                          ),
+                          child: FilledButton(
+                            onPressed: widget.onGetStarted,
+                            child: const Text('Créer mon CV  →'),
                           ),
                         ),
-                        const SizedBox(height: 14),
-                        EntranceItem(
-                          visible: vis[2],
-                          fromY: 28,
-                          child: const Text('Le CV qui', style: _heroStyle),
-                        ),
-                        EntranceItem(
-                          visible: vis[3],
-                          fromY: 28,
-                          child: const Text('vous fait', style: _heroStyle),
-                        ),
-                        EntranceItem(
-                          visible: vis[4],
-                          fromY: 28,
-                          child: AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 240),
-                            reverseDuration: const Duration(milliseconds: 160),
-                            switchInCurve: Curves.easeOutCubic,
-                            switchOutCurve: Curves.easeInCubic,
-                            transitionBuilder: (child, animation) {
-                              return FadeTransition(
-                                opacity: animation,
-                                child: ScaleTransition(
-                                  scale: Tween<double>(begin: 0.78, end: 1)
-                                      .animate(animation),
-                                  child: SlideTransition(
-                                    position: Tween<Offset>(
-                                      begin: const Offset(0, 0.33),
-                                      end: Offset.zero,
-                                    ).animate(animation),
-                                    child: child,
-                                  ),
-                                ),
-                              );
-                            },
-                            child: GradientText(
-                              '${_words[_wordIndex]}.',
-                              key: ValueKey(_wordIndex),
-                              gradient: const LinearGradient(
-                                colors: [_wAccent, AppColors.accentCo],
-                              ),
-                              style: _heroStyle,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        EntranceItem(
-                          visible: vis[5],
-                          fromY: 16,
-                          child: const Text(
-                            "Décrivez votre parcours. L'IA le transforme en CV "
-                            'qui décroche des entretiens.',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: _wInkSub,
-                              height: 1.56,
-                            ),
-                          ),
+                        const SizedBox(height: Space.lg),
+                        Text(
+                          '12 000 CV CRÉÉS · SANS CARTE BANCAIRE',
+                          style: Mono.overline.copyWith(fontSize: 10.5),
                         ),
                       ],
                     ),
-
-                    // ── Carte flottante ────────────────────
-                    EntranceItem(
-                      visible: vis[6],
-                      fromY: 38,
-                      fromScale: 0.86,
-                      child: FloatingBox(
-                        amplitude: 6,
-                        period: const Duration(milliseconds: 3000),
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            PulseBuilder(
-                              min: 0.10,
-                              max: 0.30,
-                              duration: const Duration(milliseconds: 1800),
-                              builder: (context, glow) => Container(
-                                width: 300,
-                                height: 130,
-                                decoration: BoxDecoration(
-                                  gradient: RadialGradient(
-                                    colors: [
-                                      _wAccent.withValues(alpha: glow),
-                                      Colors.transparent,
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                            _HeroCard(targetScore: _targetScore),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    // ── Preuve sociale ─────────────────────
-                    EntranceItem(
-                      visible: vis[6],
-                      fromY: 14,
-                      child: const Padding(
-                        padding: EdgeInsets.only(bottom: 4),
-                        child: Row(
-                          children: [
-                            _OverlappingAvatars(),
-                            SizedBox(width: 12),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  '★★★★★',
-                                  style: TextStyle(
-                                    color: _wAccent,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                                Text(
-                                  'Rejoint par 12 000+ candidats',
-                                  style: TextStyle(
-                                    color: _wInkSub,
-                                    fontSize: 11.5,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    // ── Boutons d'appel à l'action ─────────
-                    EntranceItem(
-                      visible: vis[7],
-                      fromY: 30,
-                      fromScale: 0.94,
-                      child: Padding(
-                        padding: const EdgeInsets.only(bottom: 36),
-                        child: Column(
-                          children: [
-                            PressScale(
-                              pressedScale: 0.965,
-                              onTap: widget.onGetStarted,
-                              child: Container(
-                                height: 58,
-                                alignment: Alignment.center,
-                                decoration: BoxDecoration(
-                                  gradient: AppColors.accentGradient,
-                                  borderRadius: BorderRadius.circular(18),
-                                ),
-                                child: const Text(
-                                  'Créer mon CV — gratuit  →',
-                                  style: TextStyle(
-                                    fontSize: 16.5,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            PressScale(
-                              pressedScale: 0.97,
-                              onTap: widget.onLogin,
-                              child: Container(
-                                height: 50,
-                                alignment: Alignment.center,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(18),
-                                  border: Border.all(
-                                    color: _wInk.withValues(alpha: 0.22),
-                                  ),
-                                ),
-                                child: Text(
-                                  'Voir un exemple en 30 s',
-                                  style: TextStyle(
-                                    fontSize: 14.5,
-                                    fontWeight: FontWeight.w600,
-                                    color: _wInk.withValues(alpha: 0.72),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ];
-
-                  return LayoutBuilder(
-                    builder: (context, constraints) {
-                      const pad = EdgeInsets.symmetric(horizontal: 24);
-
-                      // Assez de place : répartition d'origine, sans défilement.
-                      if (constraints.maxHeight >= _spreadThreshold) {
-                        return Padding(
-                          padding: pad,
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: blocks,
-                          ),
-                        );
-                      }
-
-                      // Hauteur insuffisante : on défile au lieu de rogner.
-                      return SingleChildScrollView(
-                        padding: pad,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: blocks,
-                        ),
-                      );
-                    },
-                  );
-                },
+                  ),
+                ],
               ),
             ),
           ],
@@ -370,386 +200,188 @@ class _WelcomeScreenState extends State<WelcomeScreen>
   }
 }
 
-const TextStyle _heroStyle = TextStyle(
-  fontSize: 43,
-  fontWeight: FontWeight.w800,
-  color: _wInk,
-  letterSpacing: -1.5,
-  height: 1.16,
-);
+// ── Accroche ─────────────────────────────────────────────────────────────
 
-// ── Blobs animés ─────────────────────────────────────────────────────────────
+class _Headline extends StatelessWidget {
+  const _Headline({required this.word});
 
-class _BlobPainter extends CustomPainter {
-  _BlobPainter({required this.progress});
-
-  final double progress;
-
-  void _blob(Canvas canvas, Offset center, double radius, Color color) {
-    final rect = Rect.fromCircle(center: center, radius: radius);
-    canvas.drawCircle(
-      center,
-      radius,
-      Paint()
-        ..shader = RadialGradient(
-          colors: [color, color.withValues(alpha: 0)],
-        ).createShader(rect),
-    );
-  }
+  final String word;
 
   @override
-  void paint(Canvas canvas, Size size) {
-    final p = progress;
-    _blob(
-      canvas,
-      Offset(size.width * 0.55 + 55 * p, -80 + 35 * p),
-      size.width * 0.82,
-      _wAccent.withValues(alpha: 0.42),
-    );
-    _blob(
-      canvas,
-      Offset(size.width * 0.90 - 70 * p, size.height * 0.52 + 55 * p),
-      size.width * 0.62,
-      AppColors.accentCo.withValues(alpha: 0.24),
-    );
-    _blob(
-      canvas,
-      Offset(size.width * 0.12 + 40 * p, size.height * 0.78 - 30 * p),
-      size.width * 0.50,
-      AppColors.amethysteAccent.withValues(alpha: 0.18),
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Le CV qui vous fait', style: Serif.display),
+        // Le mot se remplace sans glissement : un simple fondu, pour ne pas
+        // faire bouger une ligne de titre en serif.
+        AnimatedSwitcher(
+          duration: Motion.normal,
+          switchInCurve: Motion.enter,
+          switchOutCurve: Motion.exit,
+          child: Text(
+            '$word.',
+            key: ValueKey(word),
+            style: Serif.display.copyWith(color: Accent.red),
+          ),
+        ),
+      ],
     );
   }
-
-  @override
-  bool shouldRepaint(_BlobPainter old) => old.progress != progress;
 }
 
-// ── Atomes d'interface ───────────────────────────────────────────────────────
+// ── Feuille de démonstration ─────────────────────────────────────────────
 
-class _GradientBadge extends StatelessWidget {
-  const _GradientBadge(this.text);
-
-  final String text;
+class _DemoSheet extends StatelessWidget {
+  const _DemoSheet();
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            _wAccent.withValues(alpha: 0.28),
-            AppColors.accentCo.withValues(alpha: 0.15),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _wAccent.withValues(alpha: 0.42)),
+        color: Paper.sheet,
+        borderRadius: BorderRadius.circular(Radii.xs),
+        boxShadow: Shadow.sheet,
       ),
-      child: Text(
-        text,
-        style: const TextStyle(
-          color: AppColors.accentCo,
-          fontSize: 10,
-          letterSpacing: 2,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-}
-
-class _LoginPill extends StatelessWidget {
-  const _LoginPill({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return PressScale(
-      pressedScale: 0.94,
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: _wInk.withValues(alpha: 0.24)),
-        ),
-        child: Text(
-          'Connexion',
-          style: TextStyle(
-            color: _wInk.withValues(alpha: 0.82),
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Carte héro — glassmorphism sur fond sombre ───────────────────────────────
-
-class _HeroCard extends StatelessWidget {
-  const _HeroCard({required this.targetScore});
-
-  final int targetScore;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 296,
-      child: GradientBorder(
-        radius: 28,
-        gradient: LinearGradient(
-          colors: [
-            Colors.white.withValues(alpha: 0.28),
-            Colors.white.withValues(alpha: 0.06),
-            _wAccent.withValues(alpha: 0.22),
-          ],
-        ),
-        fill: Colors.white.withValues(alpha: 0.07),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: AnimatedIntBuilder(
-            value: targetScore,
-            duration: const Duration(milliseconds: 1600),
-            builder: (context, score) {
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const _MiniCvThumbnail(),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Text(
-                              'Score ATS',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: _wInk,
-                              ),
-                            ),
-                            Text(
-                              "Optimisé à l'instant",
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: _wInkSub.withValues(alpha: 0.65),
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(4),
-                              child: SizedBox(
-                                height: 6,
-                                child: Stack(
-                                  children: [
-                                    Positioned.fill(
-                                      child: ColoredBox(
-                                        color: _wInk.withValues(alpha: 0.10),
-                                      ),
-                                    ),
-                                    FractionallySizedBox(
-                                      widthFactor: score / 100,
-                                      child: const DecoratedBox(
-                                        decoration: BoxDecoration(
-                                          gradient: AppColors.accentCoGradient,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      GradientText(
-                        '$score',
-                        gradient: AppColors.accentCoGradient,
-                        style: const TextStyle(
-                          fontSize: 30,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  const _AiChip(),
-                ],
-              );
-            },
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _MiniCvThumbnail extends StatelessWidget {
-  const _MiniCvThumbnail();
-
-  @override
-  Widget build(BuildContext context) {
-    const lines = [(0.85, true), (0.62, false), (0.74, false)];
-    return Container(
-      width: 52,
-      height: 68,
-      padding: const EdgeInsets.all(7),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(10),
-      ),
+      padding: const EdgeInsets.fromLTRB(Space.xl, Space.xl, Space.xl, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Amina D.',
-            style: TextStyle(
-              fontSize: 7,
-              height: 1.14,
-              fontWeight: FontWeight.w600,
-              color: _wInk,
+          const Text('Amina Diallo', style: Serif.name),
+          const SizedBox(height: Space.xs),
+          const Text('PRODUCT DESIGNER · PARIS', style: Mono.overlineAccent),
+          const SizedBox(height: Space.xl),
+          const Divider(color: Paper.rule, height: 1),
+          const SizedBox(height: Space.lg),
+          const Text('EXPÉRIENCE', style: Mono.overline),
+          const SizedBox(height: Space.sm),
+          const Text('Lead Designer — Ovalis', style: Sans.entryTitle),
+          const SizedBox(height: 2),
+          const Text("2022 — aujourd'hui", style: Mono.date),
+          const SizedBox(height: Space.sm),
+          const _Bullet("Refonte du parcours d'abonnement sur iOS et Android."),
+          const _Bullet(
+            "J'étais responsable de l'équipe design et on a amélioré les "
+            'résultats.',
+            struck: true,
+          ),
+          const SizedBox(height: Space.md),
+          const _RewrittenBlock(),
+          const SizedBox(height: Space.lg),
+          const Text('Designer produit — Alan', style: Sans.entryTitle),
+          const SizedBox(height: 2),
+          const Text('2019 — 2022', style: Mono.date),
+          const SizedBox(height: Space.sm),
+          const _Bullet(
+            'Conception du portail de remboursement, 400 000 utilisateurs.',
+          ),
+          const _Bullet(
+            'Mise en place du design system et de sa documentation.',
+          ),
+          const SizedBox(height: Space.lg),
+          const Divider(color: Paper.rule, height: 1),
+          const SizedBox(height: Space.lg),
+          const Text('COMPÉTENCES', style: Mono.overline),
+          const SizedBox(height: Space.sm),
+          Text(
+            'Design système · Recherche utilisateur · Prototypage',
+            style: Sans.sheetBody.copyWith(color: Pen.muted),
+          ),
+          const SizedBox(height: Space.xxxl),
+        ],
+      ),
+    );
+  }
+}
+
+/// Puce de CV. La maquette utilise un tiret court en gris clair, pas un point
+/// médian : c'est un détail, mais c'est lui qui donne l'aspect « document ».
+class _Bullet extends StatelessWidget {
+  const _Bullet(this.text, {this.struck = false});
+
+  final String text;
+  final bool struck;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = struck
+        ? Sans.sheetBody.copyWith(
+            color: Pen.muted,
+            decoration: TextDecoration.lineThrough,
+            decorationColor: Pen.muted,
+          )
+        : Sans.sheetBody.copyWith(color: Pen.secondary);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: Space.xs),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 2, right: Space.sm),
+            child: Text('–', style: Sans.sheetBody.copyWith(color: Pen.faint)),
+          ),
+          Expanded(child: Text(text, style: style)),
+        ],
+      ),
+    );
+  }
+}
+
+/// Le bloc réécrit : filet rouge à gauche, métrique surlignée, et l'étiquette
+/// qui attribue la phrase à l'IA.
+class _RewrittenBlock extends StatelessWidget {
+  const _RewrittenBlock();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        border: Border(left: BorderSide(color: Accent.red, width: 3)),
+      ),
+      padding: const EdgeInsets.only(left: Space.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text.rich(
+            TextSpan(
+              style: Sans.sheetBody.copyWith(
+                color: Pen.primary,
+                fontSize: 12,
+                height: 1.55,
+              ),
+              children: const [
+                TextSpan(
+                  text: 'Piloté une équipe de 6 designers et porté le taux de '
+                      'conversion de ',
+                ),
+                TextSpan(
+                  text: '18 % à 32 %',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: Accent.redDeep,
+                    backgroundColor: Accent.redWash,
+                  ),
+                ),
+                TextSpan(text: ' en trois trimestres.'),
+              ],
             ),
           ),
-          const SizedBox(height: 4),
-          Divider(height: 0.5, color: _wInk.withValues(alpha: 0.15)),
-          const SizedBox(height: 4),
-          for (final (w, bold) in lines) ...[
-            FractionallySizedBox(
-              widthFactor: w,
-              alignment: Alignment.centerLeft,
-              child: Container(
-                height: 2.5,
-                decoration: BoxDecoration(
-                  color: bold
-                      ? _wAccent.withValues(alpha: 0.90)
-                      : _wInk.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
+          const SizedBox(height: Space.md),
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: Space.md,
+              vertical: Space.sm,
             ),
-            const SizedBox(height: 2.5),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _AiChip extends StatelessWidget {
-  const _AiChip();
-
-  @override
-  Widget build(BuildContext context) {
-    return GradientBorder(
-      radius: 14,
-      gradient: LinearGradient(
-        colors: [
-          _wAccent.withValues(alpha: 0.52),
-          AppColors.accentCo.withValues(alpha: 0.28),
-        ],
-      ),
-      fillGradient: LinearGradient(
-        colors: [
-          _wAccent.withValues(alpha: 0.18),
-          AppColors.accentCo.withValues(alpha: 0.10),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 20,
-              height: 20,
-              alignment: Alignment.center,
-              decoration: const BoxDecoration(
-                gradient: AppColors.accentCoGradient,
-                shape: BoxShape.circle,
-              ),
-              child: const Text(
-                '✦',
-                style: TextStyle(
-                  fontSize: 10,
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
+            decoration: BoxDecoration(
+              color: Accent.red,
+              borderRadius: BorderRadius.circular(Radii.xs),
             ),
-            const SizedBox(width: 9),
-            Expanded(
-              child: Text(
-                "Piloté une équipe de 6 et accru le CA de 32 %.",
-                style: TextStyle(
-                  fontSize: 11.5,
-                  color: _wInk.withValues(alpha: 0.85),
-                  height: 1.39,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
+            child: Text(
+              "✦  RÉÉCRIT PAR L'IA",
+              style: Mono.badge.copyWith(color: Colors.white),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── Avatars superposés ───────────────────────────────────────────────────────
-
-class _OverlappingAvatars extends StatelessWidget {
-  const _OverlappingAvatars();
-
-  @override
-  Widget build(BuildContext context) {
-    const colors = [
-      AppColors.accent,
-      AppColors.accentCo,
-      AppColors.amethysteAccent,
-      AppColors.indigoAccent,
-    ];
-    const initials = ['A', 'M', 'K', 'S'];
-
-    return SizedBox(
-      width: 82,
-      height: 28,
-      child: Stack(
-        children: [
-          for (var i = 0; i < colors.length; i++)
-            Positioned(
-              left: i * 18,
-              child: Container(
-                width: 28,
-                height: 28,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: _wBg, width: 2),
-                  gradient: LinearGradient(
-                    colors: [
-                      colors[i],
-                      colors[i].withValues(alpha: 0.55),
-                    ],
-                  ),
-                ),
-                child: Text(
-                  initials[i],
-                  style: const TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ),
+          ),
         ],
       ),
     );

@@ -1,25 +1,23 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
-import '../../theme/colors.dart';
-import '../../utils/anim.dart';
-import '../../widgets/score_ring.dart';
+import '../../models/cv_data.dart';
+import '../../state/cv_model.dart';
+import '../../theme/design_tokens.dart';
 
-/// Port de `ui/onboarding/OnboardingScreen.kt`.
-const Color _obAccent = Color(0xFF6C40E0);
-const Color _obAccentCo = Color(0xFFC49AEC);
-const Color _obBg = Color(0xFFF1ECFB);
-const Color _obCard = Color(0xFFFFFFFF);
-const Color _obInk = Color(0xFF1C1626);
-const Color _obPaper = Color(0xFFFFFFFF);
-const Color _obInkPaper = Color(0xFF241B30);
-const Color _obDark = Color(0xFF0D0920);
-const Color _obDarkMid = Color(0xFF180C30);
-const Color _obWhite = Color(0xFFEFEBFF);
-
-// ── Flux principal ───────────────────────────────────────────────────────────
-
+/// Onboarding — `maquettes/02_onboarding.jpg`.
+///
+/// Changement de nature, pas d'habillage. Le portage Compose enchaînait six
+/// écrans de présentation — splash, trois arguments, persona, félicitations —
+/// qui ne produisaient **rien** : l'utilisateur arrivait ensuite devant un CV
+/// vide.
+///
+/// La maquette en fait un assistant de création en cinq étapes. Chaque étape
+/// pose une question, propose des réponses, et **montre le CV se remplir en
+/// direct** sous le champ de saisie. À la fin, le CV existe.
+///
+/// Le compteur « 2 CHAMPS SUR 8 » de l'aperçu est ce qui rend l'exercice
+/// concret : on ne progresse pas dans un tunnel, on remplit un document.
 class OnboardingFlow extends StatefulWidget {
   const OnboardingFlow({super.key, required this.onComplete});
 
@@ -31,1142 +29,477 @@ class OnboardingFlow extends StatefulWidget {
 
 class _OnboardingFlowState extends State<OnboardingFlow> {
   int _step = 0;
-  bool _forward = true;
 
-  void _go(int next) {
-    setState(() {
-      _forward = next > _step;
-      _step = next;
-    });
+  static const _steps = <_StepSpec>[
+    _StepSpec(
+      label: 'IDENTITÉ',
+      question: 'Comment vous appelez-vous ?',
+      hint: 'Le nom qui apparaîtra en haut du CV, tel que les recruteurs '
+          'le liront.',
+      fieldLabel: 'NOM COMPLET',
+      placeholder: 'Amina Diallo',
+      previewLabel: 'EN-TÊTE',
+    ),
+    _StepSpec(
+      label: 'POSTE VISÉ',
+      question: 'Quel poste visez-vous ?',
+      hint: "L'IA adapte le vocabulaire, les verbes d'action et les mots-clés "
+          'ATS à cette cible précise.',
+      fieldLabel: 'INTITULÉ DU POSTE',
+      placeholder: 'Product Designer',
+      previewLabel: 'EN-TÊTE',
+      suggestions: [
+        'Product Designer',
+        'UX Designer',
+        'Designer produit',
+        'Design Lead',
+      ],
+    ),
+    _StepSpec(
+      label: 'EXPÉRIENCE',
+      question: 'Votre poste actuel ?',
+      hint: 'Une seule ligne suffit pour commencer. Vous compléterez le reste '
+          'dans l\'éditeur.',
+      fieldLabel: 'POSTE ET ENTREPRISE',
+      placeholder: 'Lead Designer — Ovalis',
+      previewLabel: 'EXPÉRIENCE',
+    ),
+    _StepSpec(
+      label: 'RÉALISATION',
+      question: "Qu'avez-vous accompli ?",
+      hint: 'Écrivez comme vous le diriez à l\'oral. L\'IA le réécrira en '
+          'ligne quantifiée et lisible par les ATS.',
+      fieldLabel: 'EN LANGAGE COURANT',
+      placeholder: "J'ai géré une équipe et augmenté les ventes",
+      previewLabel: 'EXPÉRIENCE',
+      multiline: true,
+    ),
+    _StepSpec(
+      label: 'COMPÉTENCES',
+      question: 'Vos compétences clés ?',
+      hint: 'Séparées par des virgules. Ce sont elles que les filtres ATS '
+          'recherchent en premier.',
+      fieldLabel: 'COMPÉTENCES',
+      placeholder: 'Design système, Recherche utilisateur',
+      previewLabel: 'COMPÉTENCES',
+      suggestions: [
+        'Design système',
+        'Recherche utilisateur',
+        'Prototypage',
+        'Figma',
+      ],
+    ),
+  ];
+
+  void _next() {
+    if (_step < _steps.length - 1) {
+      setState(() => _step++);
+    } else {
+      widget.onComplete();
+    }
+  }
+
+  void _back() {
+    if (_step > 0) {
+      setState(() => _step--);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final model = context.watch<CvModel>();
+    final spec = _steps[_step];
+
     return Scaffold(
-      backgroundColor: _obBg,
-      body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 320),
-        switchInCurve: Curves.easeOutCubic,
-        switchOutCurve: Curves.easeInCubic,
-        layoutBuilder: (current, previous) => Stack(
-          fit: StackFit.expand,
-          children: [...previous, if (current != null) current],
-        ),
-        transitionBuilder: (child, animation) {
-          final incoming = child.key == ValueKey(_step);
-          final begin = incoming
-              ? Offset(_forward ? 1 : -1, 0)
-              : Offset(_forward ? -1 : 1, 0);
-          return FadeTransition(
-            opacity: animation,
-            child: SlideTransition(
-              position: Tween<Offset>(begin: begin, end: Offset.zero)
-                  .animate(animation),
-              child: child,
+      backgroundColor: Paper.bg,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // ── Barre et progression ──────────────────────────
+            SizedBox(
+              height: 52,
+              child: Row(
+                children: [
+                  IconButton(
+                    onPressed: _step == 0 ? null : _back,
+                    icon: Icon(
+                      Icons.arrow_back,
+                      size: 24,
+                      color: _step == 0 ? Pen.faint : Pen.primary,
+                    ),
+                  ),
+                  const Spacer(),
+                  Padding(
+                    padding: const EdgeInsets.only(right: Space.xl),
+                    child: Text(
+                      '${(_step + 1).toString().padLeft(2, '0')} / '
+                      '${_steps.length.toString().padLeft(2, '0')}',
+                      style: Mono.overline.copyWith(letterSpacing: 2),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          );
-        },
-        child: KeyedSubtree(
-          key: ValueKey(_step),
-          child: switch (_step) {
-            0 => _SplashScreen(onNext: () => _go(1)),
-            1 => _FeatureWriteScreen(
-                onNext: () => _go(2),
-                onSkip: () => _go(4),
+
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: Space.xl),
+              child: _Progress(current: _step, total: _steps.length),
+            ),
+
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(
+                  Space.xl,
+                  Space.xxl,
+                  Space.xl,
+                  Space.xl,
+                ),
+                children: [
+                  Text(
+                    'ÉTAPE ${(_step + 1).toString().padLeft(2, '0')} · '
+                    '${spec.label}',
+                    style: Mono.overlineAccent,
+                  ),
+                  const SizedBox(height: Space.md),
+                  Text(spec.question,
+                      style: Serif.title.copyWith(fontSize: 27)),
+                  const SizedBox(height: Space.md),
+                  Text(spec.hint, style: Sans.body),
+
+                  const SizedBox(height: Space.xxl),
+
+                  // ── Saisie ────────────────────────────────────
+                  _UnderlinedField(
+                    key: ValueKey(_step),
+                    label: spec.fieldLabel,
+                    placeholder: spec.placeholder,
+                    initial: _valueFor(model, _step),
+                    multiline: spec.multiline,
+                    onChanged: (v) => _write(model, _step, v),
+                  ),
+
+                  if (spec.suggestions.isNotEmpty) ...[
+                    const SizedBox(height: Space.lg),
+                    Wrap(
+                      spacing: Space.sm,
+                      runSpacing: Space.sm,
+                      children: [
+                        for (final s in spec.suggestions)
+                          _SuggestionChip(
+                            label: s,
+                            selected: _isChosen(model, _step, s),
+                            onTap: () => _choose(model, _step, s),
+                          ),
+                      ],
+                    ),
+                  ],
+
+                  const SizedBox(height: Space.xxl),
+
+                  // ── Aperçu en direct ──────────────────────────
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('APERÇU EN DIRECT', style: Mono.overline),
+                      Text(
+                        '${spec.previewLabel} · '
+                        '${_filledFields(model.cvData)} CHAMPS SUR 8',
+                        style: Mono.overline,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: Space.sm),
+                  _LivePreview(data: model.cvData),
+                ],
               ),
-            2 => _FeatureScoreScreen(
-                onNext: () => _go(3),
-                onSkip: () => _go(4),
+            ),
+
+            // ── Actions ───────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                Space.xl,
+                0,
+                Space.xl,
+                Space.lg,
               ),
-            3 => _FeatureExportScreen(
-                onNext: () => _go(4),
-                onSkip: () => _go(4),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(Radii.md),
+                      boxShadow: Shadow.floating,
+                    ),
+                    child: FilledButton(
+                      onPressed: _next,
+                      child: Text(
+                        _step == _steps.length - 1 ? 'Terminer' : 'Continuer',
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: _next,
+                    child: Text(
+                      'Passer cette étape',
+                      style: Sans.button.copyWith(
+                        fontSize: 15,
+                        color: Pen.secondary,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            4 => _PersonaScreen(onNext: () => _go(5)),
-            _ => _SuccessScreen(
-                onComplete: widget.onComplete,
-                onRestart: () => _go(0),
-              ),
-          },
+            ),
+          ],
         ),
       ),
     );
   }
-}
 
-// ── Atomes partagés ──────────────────────────────────────────────────────────
+  // ── Liaison avec le modèle ──────────────────────────────────────────
 
-class _Eyebrow extends StatelessWidget {
-  const _Eyebrow(this.text);
+  String _valueFor(CvModel m, int step) {
+    final d = m.cvData;
+    return switch (step) {
+      0 => d.personalInfo.fullName,
+      1 => d.personalInfo.jobTitle,
+      2 => _experienceLine(d),
+      3 => d.experiences.firstOrNull?.description ?? '',
+      _ => d.skills.map((s) => s.name).join(', '),
+    };
+  }
 
-  final String text;
+  /// L'étape 3 saisit « Poste — Entreprise » sur une seule ligne : demander
+  /// deux champs séparés ici alourdirait l'onboarding pour rien, l'éditeur
+  /// les dissocie ensuite.
+  String _experienceLine(CvData d) {
+    final e = d.experiences.firstOrNull;
+    if (e == null) return '';
+    return [e.position, e.company]
+        .where((s) => s.trim().isNotEmpty)
+        .join(' — ');
+  }
 
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      text.toUpperCase(),
-      style: const TextStyle(
-        color: _obAccent,
-        fontSize: 11,
-        fontWeight: FontWeight.w500,
-        letterSpacing: 2,
-      ),
-    );
+  void _write(CvModel m, int step, String value) {
+    switch (step) {
+      case 0:
+        m.updatePersonalInfo(m.cvData.personalInfo.copyWith(fullName: value));
+      case 1:
+        m.updatePersonalInfo(m.cvData.personalInfo.copyWith(jobTitle: value));
+      case 2:
+        final parts = value.split('—');
+        final position = parts.first.trim();
+        final company = parts.length > 1 ? parts[1].trim() : '';
+        final first = m.cvData.experiences.firstOrNull;
+        if (first == null) {
+          if (value.trim().isEmpty) return;
+          m.addExperience(Experience(position: position, company: company));
+        } else {
+          m.updateExperience(
+            first.copyWith(position: position, company: company),
+          );
+        }
+      case 3:
+        final first = m.cvData.experiences.firstOrNull;
+        if (first == null) {
+          if (value.trim().isEmpty) return;
+          m.addExperience(Experience(description: value));
+        } else {
+          m.updateExperience(first.copyWith(description: value));
+        }
+      default:
+        // Les compétences se saisissent en une ligne séparée par des
+        // virgules : on reconstruit la liste à chaque frappe plutôt que de
+        // gérer un état intermédiaire.
+        for (final s in m.cvData.skills.toList()) {
+          m.removeSkill(s.id);
+        }
+        for (final name in value.split(',')) {
+          final n = name.trim();
+          if (n.isNotEmpty) m.addSkill(Skill(name: n));
+        }
+    }
+  }
+
+  bool _isChosen(CvModel m, int step, String value) => switch (step) {
+        1 => m.cvData.personalInfo.jobTitle.trim() == value,
+        4 => m.cvData.skills.any((s) => s.name == value),
+        _ => false,
+      };
+
+  void _choose(CvModel m, int step, String value) {
+    if (step == 1) {
+      m.updatePersonalInfo(m.cvData.personalInfo.copyWith(jobTitle: value));
+      setState(() {});
+      return;
+    }
+    if (step == 4) {
+      final existing = m.cvData.skills.where((s) => s.name == value).toList();
+      if (existing.isEmpty) {
+        m.addSkill(Skill(name: value));
+      } else {
+        for (final s in existing) {
+          m.removeSkill(s.id);
+        }
+      }
+      setState(() {});
+    }
+  }
+
+  /// Huit champs jalonnent un CV présentable. Le compteur donne à
+  /// l'onboarding une mesure concrète, là où le portage n'offrait qu'une
+  /// suite de pastilles.
+  int _filledFields(CvData d) {
+    final e = d.experiences.firstOrNull;
+    final checks = [
+      d.personalInfo.fullName,
+      d.personalInfo.jobTitle,
+      d.personalInfo.email,
+      d.personalInfo.city,
+      e?.position ?? '',
+      e?.company ?? '',
+      e?.description ?? '',
+      d.skills.isEmpty ? '' : 'x',
+    ];
+    return checks.where((s) => s.trim().isNotEmpty).length;
   }
 }
 
-class _ObTitle extends StatelessWidget {
-  const _ObTitle(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: const TextStyle(
-        color: _obInk,
-        fontSize: 28,
-        fontWeight: FontWeight.bold,
-        height: 1.18,
-      ),
-    );
-  }
-}
-
-class _ObSub extends StatelessWidget {
-  const _ObSub(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: TextStyle(
-        color: _obInk.withValues(alpha: 0.55),
-        fontSize: 15,
-        height: 1.47,
-      ),
-    );
-  }
-}
-
-class _PrimaryBtn extends StatelessWidget {
-  const _PrimaryBtn({
-    required this.text,
-    required this.onTap,
-    this.enabled = true,
+class _StepSpec {
+  const _StepSpec({
+    required this.label,
+    required this.question,
+    required this.hint,
+    required this.fieldLabel,
+    required this.placeholder,
+    required this.previewLabel,
+    this.suggestions = const [],
+    this.multiline = false,
   });
 
-  final String text;
-  final VoidCallback onTap;
-  final bool enabled;
-
-  @override
-  Widget build(BuildContext context) {
-    return PressScale(
-      pressedScale: 0.97,
-      enabled: enabled,
-      onTap: onTap,
-      child: Container(
-        height: 54,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: enabled ? _obAccent : _obAccent.withValues(alpha: 0.45),
-          borderRadius: BorderRadius.circular(15),
-        ),
-        child: Text(
-          '$text  →',
-          style: const TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.bold,
-            color: _obBg,
-          ),
-        ),
-      ),
-    );
-  }
+  final String label;
+  final String question;
+  final String hint;
+  final String fieldLabel;
+  final String placeholder;
+  final String previewLabel;
+  final List<String> suggestions;
+  final bool multiline;
 }
 
-class _GhostBtn extends StatelessWidget {
-  const _GhostBtn({required this.text, required this.onTap});
+// ── Progression ──────────────────────────────────────────────────────────
 
-  final String text;
-  final VoidCallback onTap;
+/// Cinq segments plutôt que des pastilles : la maquette montre une barre
+/// segmentée, qui dit combien d'étapes restent et non seulement où l'on est.
+class _Progress extends StatelessWidget {
+  const _Progress({required this.current, required this.total});
 
-  @override
-  Widget build(BuildContext context) {
-    return TextButton(
-      onPressed: onTap,
-      child: Text(
-        text,
-        style: TextStyle(
-          color: _obInk.withValues(alpha: 0.5),
-          fontSize: 14,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-    );
-  }
-}
-
-class _ProgressDots extends StatelessWidget {
-  const _ProgressDots({required this.count, required this.active});
-
-  final int count;
-  final int active;
+  final int current;
+  final int total;
 
   @override
   Widget build(BuildContext context) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        for (var i = 0; i < count; i++)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 3.5),
+        for (var i = 0; i < total; i++) ...[
+          Expanded(
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 320),
-              curve: kBouncy,
-              width: i == active ? 22 : 6,
-              height: 6,
+              duration: Motion.normal,
+              height: 3,
               decoration: BoxDecoration(
-                color: i == active ? _obAccent : _obInk.withValues(alpha: 0.18),
-                borderRadius: BorderRadius.circular(9),
+                color: i <= current ? Accent.red : Paper.ruleStrong,
+                borderRadius: BorderRadius.circular(Radii.full),
               ),
             ),
           ),
+          if (i < total - 1) const SizedBox(width: Space.sm),
+        ],
       ],
     );
   }
 }
 
-class _ObHeader extends StatelessWidget {
-  const _ObHeader({this.onSkip});
+// ── Champ souligné ───────────────────────────────────────────────────────
 
-  final VoidCallback? onSkip;
+/// Le champ de la maquette n'a ni cadre ni fond : du texte à grande taille
+/// posé sur un filet rouge. C'est ce qui lui donne l'air d'écrire directement
+/// dans le document plutôt que de remplir un formulaire.
+class _UnderlinedField extends StatefulWidget {
+  const _UnderlinedField({
+    super.key,
+    required this.label,
+    required this.placeholder,
+    required this.initial,
+    required this.onChanged,
+    this.multiline = false,
+  });
+
+  final String label;
+  final String placeholder;
+  final String initial;
+  final ValueChanged<String> onChanged;
+  final bool multiline;
 
   @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Image.asset(
-          'assets/images/logo_icon.png',
-          width: 64,
-          height: 64,
-          fit: BoxFit.contain,
-        ),
-        if (onSkip != null)
-          TextButton(
-            onPressed: onSkip,
-            child: Text(
-              'Passer',
-              style: TextStyle(
-                color: _obInk.withValues(alpha: 0.45),
-                fontSize: 12,
-              ),
-            ),
-          )
-        else
-          const SizedBox(width: 30, height: 30),
-      ],
-    );
-  }
+  State<_UnderlinedField> createState() => _UnderlinedFieldState();
 }
 
-class _ObFooter extends StatelessWidget {
-  const _ObFooter({required this.dotsActive, required this.onNext});
+class _UnderlinedFieldState extends State<_UnderlinedField> {
+  late final TextEditingController _controller =
+      TextEditingController(text: widget.initial);
 
-  final int dotsActive;
-  final VoidCallback onNext;
-
-  /// Les trois écrans de présentation utilisent le même libellé ; le
-  /// paramètre `label` de la version Kotlin n'était jamais surchargé.
-  static const String label = 'Suivant';
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _ProgressDots(count: 3, active: dotsActive),
-        const SizedBox(height: 14),
-        _PrimaryBtn(text: label, onTap: onNext),
+        Text(widget.label, style: Mono.overline),
+        const SizedBox(height: Space.sm),
+        TextField(
+          controller: _controller,
+          onChanged: widget.onChanged,
+          autofocus: false,
+          maxLines: widget.multiline ? 3 : 1,
+          style: Sans.body.copyWith(
+            fontSize: widget.multiline ? 17 : 21,
+            height: 1.35,
+            color: Pen.primary,
+            fontWeight: FontWeight.w500,
+          ),
+          decoration: InputDecoration(
+            filled: false,
+            isDense: true,
+            contentPadding: const EdgeInsets.only(bottom: Space.sm),
+            hintText: widget.placeholder,
+            hintStyle: Sans.body.copyWith(
+              fontSize: widget.multiline ? 17 : 21,
+              color: Pen.faint,
+              fontWeight: FontWeight.w400,
+            ),
+            border: const UnderlineInputBorder(
+              borderSide: BorderSide(color: Accent.red, width: 1.5),
+            ),
+            enabledBorder: const UnderlineInputBorder(
+              borderSide: BorderSide(color: Accent.red, width: 1.5),
+            ),
+            focusedBorder: const UnderlineInputBorder(
+              borderSide: BorderSide(color: Accent.red, width: 2),
+            ),
+          ),
+        ),
       ],
     );
   }
 }
 
-// ── Écran 0 · Splash ─────────────────────────────────────────────────────────
-
-class _SplashScreen extends StatelessWidget {
-  const _SplashScreen({required this.onNext});
-
-  final VoidCallback onNext;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [_obDark, _obDarkMid, _obDark],
-        ),
-      ),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(28),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 60),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Image.asset(
-                      'assets/images/logo_icon.png',
-                      height: 220,
-                      fit: BoxFit.contain,
-                    ),
-                    const Padding(
-                      padding: EdgeInsets.only(top: 12),
-                      child: Text(
-                        'IA · ERA',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: _obAccentCo,
-                          letterSpacing: 4,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Text(
-                        "Votre parcours, sublimé par l'intelligence artificielle.",
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 22,
-                          color: _obWhite.withValues(alpha: 0.80),
-                          height: 1.36,
-                          fontStyle: FontStyle.italic,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              PressScale(
-                pressedScale: 0.97,
-                onTap: onNext,
-                child: Container(
-                  height: 54,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    gradient: AppColors.accentGradient,
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                  child: const Text(
-                    'Commencer  →',
-                    style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
-              Container(
-                height: 48,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(15),
-                  border: Border.all(color: _obWhite.withValues(alpha: 0.22)),
-                ),
-                child: Text(
-                  "J'ai déjà un compte",
-                  style: TextStyle(
-                    color: _obWhite.withValues(alpha: 0.65),
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Écran 1 · Rédaction IA ───────────────────────────────────────────────────
-
-class _FeatureWriteScreen extends StatefulWidget {
-  const _FeatureWriteScreen({required this.onNext, required this.onSkip});
-
-  final VoidCallback onNext;
-  final VoidCallback onSkip;
-
-  @override
-  State<_FeatureWriteScreen> createState() => _FeatureWriteScreenState();
-}
-
-class _FeatureWriteScreenState extends State<_FeatureWriteScreen>
-    with SingleTickerProviderStateMixin {
-  static const _raw = 'jai géré une équipe et augmenté les ventes';
-
-  String _typed = '';
-  String _phase = 'typing';
-
-  late final AnimationController _blink = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 500),
-  )..repeat(reverse: true);
-
-  @override
-  void initState() {
-    super.initState();
-    _startTyping();
-  }
-
-  Future<void> _startTyping() async {
-    await Future<void>.delayed(const Duration(milliseconds: 400));
-    for (var i = 1; i <= _raw.length; i++) {
-      if (!mounted) return;
-      setState(() => _typed = _raw.substring(0, i));
-      await Future<void>.delayed(const Duration(milliseconds: 42));
-    }
-    await Future<void>.delayed(const Duration(milliseconds: 500));
-    if (!mounted) return;
-    setState(() => _phase = 'think');
-    await Future<void>.delayed(const Duration(milliseconds: 1000));
-    if (!mounted) return;
-    setState(() => _phase = 'done');
-  }
-
-  @override
-  void dispose() {
-    _blink.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final done = _phase == 'done';
-
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _ObHeader(onSkip: widget.onSkip),
-            const SizedBox(height: 16),
-            const _Eyebrow('01 · Rédaction IA'),
-            const SizedBox(height: 16),
-            const _ObTitle("Décrivez.\nL'IA rédige."),
-            const SizedBox(height: 16),
-            const _ObSub(
-              "Écrivez comme vous parlez. L'IA transforme vos phrases en "
-              'accomplissements percutants.',
-            ),
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Bulle de saisie brute
-                  Container(
-                    decoration: BoxDecoration(
-                      color: _obCard,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: _obInk.withValues(alpha: 0.07)),
-                    ),
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Vous écrivez',
-                          style: TextStyle(
-                            color: _obInk.withValues(alpha: 0.4),
-                            fontSize: 10,
-                            letterSpacing: 1,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            Flexible(
-                              child: Text(
-                                _typed,
-                                style: TextStyle(
-                                  color: _obInk.withValues(alpha: 0.85),
-                                  fontSize: 15,
-                                ),
-                              ),
-                            ),
-                            if (_phase == 'typing')
-                              FadeTransition(
-                                opacity: _blink,
-                                child: Container(
-                                  width: 2,
-                                  height: 18,
-                                  color: _obAccent,
-                                ),
-                              ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 14),
-
-                  // Indicateur IA
-                  Padding(
-                    padding: const EdgeInsets.only(left: 4),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 30,
-                          height: 30,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: _obAccent.withValues(alpha: 0.14),
-                            borderRadius: BorderRadius.circular(9),
-                          ),
-                          child: const Text(
-                            '✦',
-                            style: TextStyle(color: _obAccent, fontSize: 15),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Text(
-                          done ? "Reformulé par l'IA" : "L'IA reformule…",
-                          style: TextStyle(
-                            color: _obInk.withValues(alpha: 0.5),
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 14),
-
-                  // Sortie polie
-                  AnimatedSlide(
-                    offset: done ? Offset.zero : const Offset(0, 0.12),
-                    duration: const Duration(milliseconds: 320),
-                    child: AnimatedOpacity(
-                      opacity: done ? 1 : 0.25,
-                      duration: const Duration(milliseconds: 320),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: _obAccent.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: _obAccent.withValues(alpha: 0.35),
-                          ),
-                        ),
-                        padding: const EdgeInsets.all(16),
-                        child: const Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Résultat pro',
-                              style: TextStyle(
-                                color: _obAccent,
-                                fontSize: 10,
-                                letterSpacing: 1,
-                              ),
-                            ),
-                            SizedBox(height: 8),
-                            Text.rich(
-                              TextSpan(
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  color: _obInk,
-                                  height: 1.47,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                children: [
-                                  TextSpan(
-                                    text: 'Piloté',
-                                    style: TextStyle(
-                                      color: _obAccent,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  TextSpan(text: ' une équipe de 6 et '),
-                                  TextSpan(
-                                    text: "accru le chiffre d'affaires de 32 %",
-                                    style: TextStyle(
-                                      color: _obAccent,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  TextSpan(text: ' en 9 mois.'),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            _ObFooter(dotsActive: 0, onNext: widget.onNext),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── Écran 2 · Score de crédibilité ───────────────────────────────────────────
-
-class _FeatureScoreScreen extends StatefulWidget {
-  const _FeatureScoreScreen({required this.onNext, required this.onSkip});
-
-  final VoidCallback onNext;
-  final VoidCallback onSkip;
-
-  @override
-  State<_FeatureScoreScreen> createState() => _FeatureScoreScreenState();
-}
-
-class _FeatureScoreScreenState extends State<_FeatureScoreScreen> {
-  static const _factors = [
-    "Verbes d'action",
-    'Résultats chiffrés',
-    'Mots-clés ATS',
-  ];
-
-  int _targetScore = 0;
-  int _lit = 0;
-  final List<Timer> _timers = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _timers.add(Timer(const Duration(milliseconds: 300), () {
-      if (mounted) setState(() => _targetScore = 92);
-    }));
-    _timers.add(Timer(const Duration(milliseconds: 1000), () {
-      if (mounted) setState(() => _lit = 1);
-    }));
-    _timers.add(Timer(const Duration(milliseconds: 1300), () {
-      if (mounted) setState(() => _lit = 2);
-    }));
-    _timers.add(Timer(const Duration(milliseconds: 1600), () {
-      if (mounted) setState(() => _lit = 3);
-    }));
-  }
-
-  @override
-  void dispose() {
-    for (final t in _timers) {
-      t.cancel();
-    }
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _ObHeader(onSkip: widget.onSkip),
-            const SizedBox(height: 16),
-            const _Eyebrow('02 · Score de crédibilité'),
-            const SizedBox(height: 16),
-            const _ObTitle('Mesurez votre impact,\nen direct.'),
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Center(child: ScoreRingLarge(score: _targetScore)),
-                  const SizedBox(height: 30),
-                  for (final (idx, label) in _factors.indexed) ...[
-                    _FactorRow(label: label, lit: _lit >= idx + 1),
-                    if (idx < _factors.length - 1) const SizedBox(height: 10),
-                  ],
-                ],
-              ),
-            ),
-            _ObFooter(dotsActive: 1, onNext: widget.onNext),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _FactorRow extends StatelessWidget {
-  const _FactorRow({required this.label, required this.lit});
-
-  final String label;
-  final bool lit;
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedSlide(
-      offset: lit ? Offset.zero : const Offset(-0.015, 0),
-      duration: const Duration(milliseconds: 300),
-      child: AnimatedOpacity(
-        opacity: lit ? 1 : 0.4,
-        duration: const Duration(milliseconds: 300),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          decoration: BoxDecoration(
-            color: _obCard,
-            borderRadius: BorderRadius.circular(13),
-            border: Border.all(
-              color: lit
-                  ? _obAccent.withValues(alpha: 0.3)
-                  : _obInk.withValues(alpha: 0.06),
-            ),
-          ),
-          padding: const EdgeInsets.all(13),
-          child: Row(
-            children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                width: 22,
-                height: 22,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: lit ? _obAccent : _obInk.withValues(alpha: 0.12),
-                ),
-                child: lit
-                    ? const Text(
-                        '✓',
-                        style: TextStyle(
-                          color: _obBg,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      )
-                    : null,
-              ),
-              const SizedBox(width: 12),
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 15,
-                  color: _obInk,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Écran 3 · Export & ATS ───────────────────────────────────────────────────
-
-class _FeatureExportScreen extends StatefulWidget {
-  const _FeatureExportScreen({required this.onNext, required this.onSkip});
-
-  final VoidCallback onNext;
-  final VoidCallback onSkip;
-
-  @override
-  State<_FeatureExportScreen> createState() => _FeatureExportScreenState();
-}
-
-class _FeatureExportScreenState extends State<_FeatureExportScreen> {
-  bool _show = false;
-  Timer? _timer;
-
-  @override
-  void initState() {
-    super.initState();
-    _timer = Timer(const Duration(milliseconds: 300), () {
-      if (mounted) setState(() => _show = true);
-    });
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    const lines = [(0.85, true), (0.70, false), (0.78, false)];
-
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _ObHeader(onSkip: widget.onSkip),
-            const SizedBox(height: 16),
-            const _Eyebrow('03 · Export & ATS'),
-            const SizedBox(height: 16),
-            const _ObTitle('Un PDF impeccable,\nlu par les robots.'),
-            const SizedBox(height: 16),
-            const _ObSub(
-              'Mise en page soignée à l\'écran, structure parfaitement '
-              'lisible par les filtres ATS.',
-            ),
-            Expanded(
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  // Maquette de CV
-                  AnimatedSlide(
-                    offset: _show ? Offset.zero : const Offset(0, 0.04),
-                    duration: const Duration(milliseconds: 420),
-                    curve: kBouncy,
-                    child: Container(
-                      width: 200,
-                      decoration: BoxDecoration(
-                        color: _obPaper,
-                        borderRadius: BorderRadius.circular(10),
-                        boxShadow: [
-                          BoxShadow(
-                            color: _obInk.withValues(alpha: 0.18),
-                            blurRadius: 22,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
-                      ),
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Amina Diallo',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w600,
-                              color: _obInkPaper,
-                            ),
-                          ),
-                          const Text(
-                            'Chef de projet · Marketing',
-                            style: TextStyle(
-                              fontSize: 9,
-                              color: _obAccent,
-                              letterSpacing: 1,
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            child: Divider(
-                              height: 1,
-                              color: _obInkPaper.withValues(alpha: 0.15),
-                            ),
-                          ),
-                          const Text(
-                            'Expérience',
-                            style: TextStyle(
-                              fontSize: 9,
-                              fontWeight: FontWeight.bold,
-                              color: _obInkPaper,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          for (final (i, (w, strong)) in lines.indexed) ...[
-                            TweenAnimationBuilder<double>(
-                              tween: Tween<double>(
-                                begin: 0,
-                                end: _show ? w : 0,
-                              ),
-                              duration: Duration(
-                                milliseconds: 600 + i * 100,
-                              ),
-                              builder: (context, factor, _) =>
-                                  FractionallySizedBox(
-                                widthFactor: factor,
-                                alignment: Alignment.centerLeft,
-                                child: Container(
-                                  height: 6,
-                                  decoration: BoxDecoration(
-                                    color: _obInkPaper.withValues(
-                                      alpha: strong ? 0.55 : 0.16,
-                                    ),
-                                    borderRadius: BorderRadius.circular(3),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                          ],
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Compétences',
-                            style: TextStyle(
-                              fontSize: 9,
-                              fontWeight: FontWeight.bold,
-                              color: _obInkPaper,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          AnimatedOpacity(
-                            opacity: _show ? 1 : 0,
-                            duration: const Duration(milliseconds: 400),
-                            child: Row(
-                              children: [
-                                for (final tag in ['Stratégie', 'SEO', 'Figma'])
-                                  Padding(
-                                    padding: const EdgeInsets.only(right: 5),
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 3,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: _obAccent.withValues(
-                                          alpha: 0.18,
-                                        ),
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
-                                      child: Text(
-                                        tag,
-                                        style: const TextStyle(
-                                          fontSize: 8,
-                                          color: _obInkPaper,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  // Badge ATS
-                  Positioned(
-                    top: 16,
-                    right: 0,
-                    child: AnimatedOpacity(
-                      opacity: _show ? 1 : 0,
-                      duration: const Duration(milliseconds: 500),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 7,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _obAccent,
-                          borderRadius: BorderRadius.circular(9),
-                        ),
-                        child: const Text(
-                          '✓ Compatible ATS',
-                          style: TextStyle(
-                            color: _obBg,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  // Badge PDF
-                  Positioned(
-                    bottom: 16,
-                    left: 0,
-                    child: AnimatedOpacity(
-                      opacity: _show ? 1 : 0,
-                      duration: const Duration(milliseconds: 500),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 11,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _obCard,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: _obInk.withValues(alpha: 0.12),
-                          ),
-                        ),
-                        child: const Text(
-                          'PDF · A4 · 300dpi',
-                          style: TextStyle(fontSize: 10, color: _obInk),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            _ObFooter(dotsActive: 2, onNext: widget.onNext),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── Écran 4 · Persona ────────────────────────────────────────────────────────
-
-class _PersonaScreen extends StatefulWidget {
-  const _PersonaScreen({required this.onNext});
-
-  final VoidCallback onNext;
-
-  @override
-  State<_PersonaScreen> createState() => _PersonaScreenState();
-}
-
-class _PersonaScreenState extends State<_PersonaScreen> {
-  static const _roles = [
-    'Étudiant·e',
-    'Cadre',
-    'Entrepreneur·e',
-    'En reconversion',
-  ];
-  static const _sectors = [
-    'Tech',
-    'Marketing',
-    'Finance',
-    'Santé',
-    'Design',
-    'Éducation',
-  ];
-
-  String? _role;
-  String? _sector;
-
-  bool get _ready => _role != null && _sector != null;
-
-  /// Équivalent de `List.chunked(n)` en Kotlin.
-  List<List<T>> _chunked<T>(List<T> list, int size) {
-    return [
-      for (var i = 0; i < list.length; i += size)
-        list.sublist(i, (i + size).clamp(0, list.length)),
-    ];
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 40),
-            const _Eyebrow('Pour commencer'),
-            const SizedBox(height: 4),
-            const _ObTitle('Parlez-nous de vous.'),
-            Expanded(
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 24),
-                    Text(
-                      'Vous êtes…',
-                      style: TextStyle(
-                        color: _obInk.withValues(alpha: 0.45),
-                        fontSize: 11,
-                        letterSpacing: 1,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    for (final row in _chunked(_roles, 2)) ...[
-                      Row(
-                        children: [
-                          for (final (i, r) in row.indexed) ...[
-                            Expanded(
-                              child: _SelectChip(
-                                label: r,
-                                selected: _role == r,
-                                onTap: () => setState(() => _role = r),
-                              ),
-                            ),
-                            if (i < row.length - 1) const SizedBox(width: 9),
-                          ],
-                        ],
-                      ),
-                      const SizedBox(height: 9),
-                    ],
-                    const SizedBox(height: 24),
-                    Text(
-                      'Votre secteur',
-                      style: TextStyle(
-                        color: _obInk.withValues(alpha: 0.45),
-                        fontSize: 11,
-                        letterSpacing: 1,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    for (final row in _chunked(_sectors, 3)) ...[
-                      Row(
-                        children: [
-                          for (final (i, s) in row.indexed) ...[
-                            Expanded(
-                              child: _SelectChip(
-                                label: s,
-                                selected: _sector == s,
-                                onTap: () => setState(() => _sector = s),
-                              ),
-                            ),
-                            if (i < row.length - 1) const SizedBox(width: 8),
-                          ],
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-            const _ProgressDots(count: 3, active: 2),
-            const SizedBox(height: 12),
-            AnimatedOpacity(
-              opacity: _ready ? 1 : 0.45,
-              duration: const Duration(milliseconds: 250),
-              child: SizedBox(
-                width: double.infinity,
-                child: _PrimaryBtn(
-                  text: 'Créer mon CV',
-                  onTap: widget.onNext,
-                  enabled: _ready,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SelectChip extends StatelessWidget {
-  const _SelectChip({
+class _SuggestionChip extends StatelessWidget {
+  const _SuggestionChip({
     required this.label,
     required this.selected,
     required this.onTap,
@@ -1178,75 +511,28 @@ class _SelectChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return InkWell(
       onTap: onTap,
-      child: AnimatedScale(
-        scale: selected ? 1.04 : 1,
-        duration: const Duration(milliseconds: 280),
-        curve: kBouncy,
-        child: GradientBorder(
-          radius: 13,
-          gradient: selected
-              ? LinearGradient(
-                  colors: [
-                    _obAccent.withValues(alpha: 0.85),
-                    _obAccentCo.withValues(alpha: 0.55),
-                  ],
-                )
-              : LinearGradient(
-                  colors: [
-                    _obInk.withValues(alpha: 0.14),
-                    _obInk.withValues(alpha: 0.10),
-                  ],
-                ),
-          fillGradient: selected
-              ? LinearGradient(
-                  colors: [
-                    _obAccent.withValues(alpha: 0.22),
-                    _obAccentCo.withValues(alpha: 0.14),
-                  ],
-                )
-              : const LinearGradient(colors: [_obCard, _obCard]),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (selected) ...[
-                  Container(
-                    width: 18,
-                    height: 18,
-                    alignment: Alignment.center,
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: LinearGradient(
-                        colors: [_obAccent, _obAccentCo],
-                      ),
-                    ),
-                    child: const Text(
-                      '✓',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                ],
-                Flexible(
-                  child: Text(
-                    label,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-                      color: selected ? _obAccent : _obInk,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+      borderRadius: BorderRadius.circular(Radii.sm),
+      child: AnimatedContainer(
+        duration: Motion.fast,
+        padding: const EdgeInsets.symmetric(
+          horizontal: Space.lg,
+          vertical: Space.md,
+        ),
+        decoration: BoxDecoration(
+          color: selected ? Accent.redWash : Paper.sheet,
+          borderRadius: BorderRadius.circular(Radii.sm),
+          border: Border.all(
+            color: selected ? Accent.redLine : Paper.ruleStrong,
+          ),
+        ),
+        child: Text(
+          label,
+          style: Sans.body.copyWith(
+            fontSize: 15,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+            color: selected ? Accent.red : Pen.primary,
           ),
         ),
       ),
@@ -1254,105 +540,93 @@ class _SelectChip extends StatelessWidget {
   }
 }
 
-// ── Écran 5 · Succès ─────────────────────────────────────────────────────────
+// ── Aperçu en direct ─────────────────────────────────────────────────────
 
-class _SuccessScreen extends StatelessWidget {
-  const _SuccessScreen({required this.onComplete, required this.onRestart});
+/// Le CV en construction, avec des barres grises là où l'information manque.
+///
+/// Ce squelette est le ressort de l'écran : il montre ce qui reste à remplir
+/// sans l'énumérer, et rend visible l'effet de chaque frappe.
+class _LivePreview extends StatelessWidget {
+  const _LivePreview({required this.data});
 
-  final VoidCallback onComplete;
-  final VoidCallback onRestart;
+  final CvData data;
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Image.asset(
-                'assets/images/logo_icon.png',
-                width: 72,
-                height: 72,
-                fit: BoxFit.contain,
-              ),
+    final info = data.personalInfo;
+    final exp = data.experiences.firstOrNull;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Paper.sheet,
+        borderRadius: BorderRadius.circular(Radii.xs),
+        boxShadow: Shadow.sheet,
+      ),
+      padding: const EdgeInsets.all(Space.xl),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (info.fullName.trim().isEmpty)
+            const _Skeleton(width: 0.55, height: 18)
+          else
+            Text(info.fullName, style: Serif.name.copyWith(fontSize: 20)),
+          const SizedBox(height: Space.xs),
+          if (info.jobTitle.trim().isEmpty)
+            const _Skeleton(width: 0.35, height: 9)
+          else
+            Text(info.jobTitle.toUpperCase(), style: Mono.overlineAccent),
+          const SizedBox(height: Space.md),
+          const Divider(color: Paper.rule, height: 1),
+          const SizedBox(height: Space.md),
+          const Text('EXPÉRIENCE', style: Mono.overline),
+          const SizedBox(height: Space.sm),
+          if (exp == null || _line(exp).isEmpty)
+            const _Skeleton(width: 0.7, height: 8)
+          else
+            Text(_line(exp), style: Sans.entryTitle),
+          const SizedBox(height: Space.sm),
+          if (exp == null || exp.description.trim().isEmpty) ...[
+            const _Skeleton(width: 0.95, height: 6),
+            const SizedBox(height: 5),
+            const _Skeleton(width: 0.8, height: 6),
+            const SizedBox(height: 5),
+            const _Skeleton(width: 0.6, height: 6),
+          ] else
+            Text(exp.description, style: Sans.sheetBody),
+          if (data.skills.isNotEmpty) ...[
+            const SizedBox(height: Space.md),
+            const Text('COMPÉTENCES', style: Mono.overline),
+            const SizedBox(height: Space.xs),
+            Text(
+              data.skills.map((s) => s.name).join(' · '),
+              style: Sans.sheetBody,
             ),
-            const Spacer(),
-            Center(
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  PulseBuilder(
-                    min: 0.12,
-                    max: 0.38,
-                    duration: const Duration(milliseconds: 1300),
-                    builder: (context, alpha) => Container(
-                      width: 136,
-                      height: 136,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: RadialGradient(
-                          colors: [
-                            _obAccent.withValues(alpha: alpha),
-                            Colors.transparent,
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  Container(
-                    width: 96,
-                    height: 96,
-                    alignment: Alignment.center,
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: AppColors.accentGradient,
-                    ),
-                    child: const Text(
-                      '✓',
-                      style: TextStyle(
-                        fontSize: 46,
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 30),
-            const Text(
-              'Tout est prêt.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 30,
-                fontWeight: FontWeight.w800,
-                color: _obInk,
-                letterSpacing: -0.5,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Text(
-                'Votre espace est configuré.\n'
-                "L'IA vous attend pour écrire la suite.",
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 20,
-                  color: _obInk.withValues(alpha: 0.7),
-                  height: 1.4,
-                  fontStyle: FontStyle.italic,
-                ),
-              ),
-            ),
-            const Spacer(),
-            _PrimaryBtn(text: "Entrer dans l'éditeur", onTap: onComplete),
-            const SizedBox(height: 10),
-            _GhostBtn(text: "Revoir l'introduction", onTap: onRestart),
           ],
+        ],
+      ),
+    );
+  }
+
+  String _line(Experience e) =>
+      [e.position, e.company].where((s) => s.trim().isNotEmpty).join(' — ');
+}
+
+class _Skeleton extends StatelessWidget {
+  const _Skeleton({required this.width, required this.height});
+
+  final double width;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    return FractionallySizedBox(
+      widthFactor: width,
+      alignment: Alignment.centerLeft,
+      child: Container(
+        height: height,
+        decoration: BoxDecoration(
+          color: Paper.rule,
+          borderRadius: BorderRadius.circular(Radii.xs),
         ),
       ),
     );

@@ -4,6 +4,7 @@ import 'package:cvgenerator/models/cv_document.dart';
 import 'package:cvgenerator/screens/cv_wizard_screen.dart';
 import 'package:cvgenerator/screens/dashboard_screen.dart';
 import 'package:cvgenerator/screens/editor_screen.dart';
+import 'package:cvgenerator/screens/onboarding/onboarding_flow.dart';
 import 'package:cvgenerator/state/cv_library.dart';
 import 'package:cvgenerator/state/cv_model.dart';
 import 'package:cvgenerator/state/cv_storage.dart';
@@ -25,7 +26,9 @@ void main() {
       await tester.pumpWidget(CvGeneratorApp(prefs: prefs));
       await tester.pump(const Duration(milliseconds: 900));
 
-      expect(find.text('Le CV qui'), findsOneWidget);
+      // L'accroche de la maquette tient sur une ligne, suivie du mot
+      // qui change en rouge.
+      expect(find.text('Le CV qui vous fait'), findsOneWidget);
     });
 
     testWidgets('onboardé mais non connecté → Auth', (tester) async {
@@ -35,7 +38,7 @@ void main() {
       await tester.pumpWidget(CvGeneratorApp(prefs: prefs));
       await tester.pump(const Duration(milliseconds: 900));
 
-      expect(find.text('Bon retour 👋'), findsOneWidget);
+      expect(find.textContaining('Reprendre où vous'), findsOneWidget);
     });
 
     testWidgets('connecté → Dashboard', (tester) async {
@@ -48,7 +51,9 @@ void main() {
       await tester.pumpWidget(CvGeneratorApp(prefs: prefs));
       await tester.pump(const Duration(milliseconds: 900));
 
-      expect(find.text('Amina Diallo'), findsOneWidget);
+      // « Mes CV » ne montre plus le nom du porteur en en-tête : la maquette
+      // met le titre de l'écran, et l'identité vit dans l'onglet Profil.
+      expect(find.text('Mes CV'), findsOneWidget);
     });
   });
 
@@ -70,6 +75,11 @@ void main() {
         ),
       );
       await tester.pump(const Duration(milliseconds: 600));
+
+      // L'éditeur ouvre « Expérience » par défaut, comme la maquette :
+      // « Nom complet » vit dans « Profil », qu'il faut déplier d'abord.
+      await tester.tap(find.text('Profil'));
+      await tester.pump(const Duration(milliseconds: 400));
 
       // Une frappe dans « Nom complet » doit se retrouver dans le modèle —
       // c'est exactement ce que la version Compose perdait.
@@ -93,9 +103,8 @@ void main() {
           CvData(
             personalInfo: const PersonalInfo(fullName: 'Fatou Sow'),
             experiences: [
-              Experience(position: 'Développeuse', company: 'Alpha'),
+              Experience(position: 'Developpeuse', company: 'Alpha'),
               Experience(position: 'Lead', company: 'Beta'),
-              Experience(position: 'Architecte', company: 'Gamma'),
             ],
           ),
         );
@@ -113,20 +122,86 @@ void main() {
       );
       await tester.pump(const Duration(milliseconds: 600));
 
-      await tester.tap(find.text('Expérience'));
-      await tester.pump(const Duration(milliseconds: 400));
+      // « Expérience » est dépliée d'entrée : les deux postes doivent avoir
+      // leur propre champ. Le portage n'en montrait qu'un.
+      expect(find.widgetWithText(TextField, 'Alpha'), findsOneWidget);
+      expect(find.widgetWithText(TextField, 'Beta'), findsOneWidget);
 
-      expect(find.text('EXPÉRIENCE 1'), findsOneWidget);
-      expect(find.text('EXPÉRIENCE 3'), findsOneWidget);
-      expect(find.text('Gamma'), findsOneWidget, reason: 'la 3e est affichée');
-
-      // Modifier la troisième ne doit pas toucher les autres.
-      await tester.enterText(find.widgetWithText(TextField, 'Gamma'), 'Delta');
+      // Modifier le second ne doit pas toucher le premier.
+      await tester.enterText(find.widgetWithText(TextField, 'Beta'), 'Delta');
       await tester.pump();
 
-      expect(model.cvData.experiences[2].company, 'Delta');
+      expect(model.cvData.experiences[1].company, 'Delta');
       expect(model.cvData.experiences[0].company, 'Alpha');
-      expect(model.cvData.experiences, hasLength(3));
+      expect(model.cvData.experiences, hasLength(2));
+    });
+  });
+
+  group('Onboarding', () {
+    Widget flow(CvModel model, {VoidCallback? onComplete}) =>
+        ChangeNotifierProvider<CvModel>.value(
+          value: model,
+          child: MaterialApp(
+            home: OnboardingFlow(onComplete: onComplete ?? () {}),
+          ),
+        );
+
+    testWidgets('chaque étape écrit dans le CV, qui existe à la fin',
+        (tester) async {
+      // Le portage enchaînait six écrans de présentation qui ne produisaient
+      // rien : on arrivait ensuite devant un CV vide. Ici l'onboarding EST la
+      // création.
+      final model = CvModel();
+      var done = false;
+
+      await tester.pumpWidget(flow(model, onComplete: () => done = true));
+      await tester.pump();
+
+      expect(find.text('ÉTAPE 01 · IDENTITÉ'), findsOneWidget);
+      expect(find.textContaining('0 CHAMPS SUR 8'), findsOneWidget);
+
+      await tester.enterText(find.byType(TextField), 'Fatou Sow');
+      await tester.pump();
+      expect(model.cvData.personalInfo.fullName, 'Fatou Sow');
+      expect(find.textContaining('1 CHAMPS SUR 8'), findsOneWidget);
+
+      await tester.tap(find.text('Continuer'));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text('ÉTAPE 02 · POSTE VISÉ'), findsOneWidget);
+
+      // Une suggestion remplit le champ sans passer par le clavier.
+      await tester.tap(find.text('UX Designer'));
+      await tester.pump();
+      expect(model.cvData.personalInfo.jobTitle, 'UX Designer');
+
+      // On saute jusqu'au bout : « Passer cette étape » avance sans exiger
+      // de saisie, comme la maquette le prévoit. Depuis l'étape 02, il faut
+      // trois appuis pour atteindre la dernière, un quatrième pour terminer.
+      for (var i = 0; i < 4; i++) {
+        await tester.tap(find.text('Passer cette étape'));
+        await tester.pump(const Duration(milliseconds: 400));
+      }
+
+      expect(done, isTrue, reason: 'la dernière étape termine le parcours');
+      expect(model.cvData.personalInfo.fullName, 'Fatou Sow');
+    });
+
+    testWidgets('le retour arrière conserve ce qui a été saisi',
+        (tester) async {
+      final model = CvModel();
+      await tester.pumpWidget(flow(model));
+      await tester.pump();
+
+      await tester.enterText(find.byType(TextField), 'Fatou Sow');
+      await tester.pump();
+
+      await tester.tap(find.text('Continuer'));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.tap(find.byIcon(Icons.arrow_back));
+      await tester.pump(const Duration(milliseconds: 400));
+
+      // Le champ est réamorcé depuis le modèle, pas vidé.
+      expect(find.text('Fatou Sow'), findsWidgets);
     });
   });
 
@@ -269,7 +344,7 @@ void main() {
       await tester.pumpWidget(dashboard(onSignOut: () => signedOut = true));
       await tester.pump(const Duration(milliseconds: 900));
 
-      await tester.tap(find.text('Profil'));
+      await tester.tap(find.text('PROFIL'));
       await tester.pump(const Duration(milliseconds: 400));
 
       // L'identité vient du CV le plus récent, faute de compte utilisateur.
@@ -284,13 +359,10 @@ void main() {
       await tester.pumpWidget(dashboard());
       await tester.pump(const Duration(milliseconds: 900));
 
-      await tester.tap(find.text('Modèles'));
+      // La maquette ne garde que trois onglets : l'onglet « IA » a disparu.
+      await tester.tap(find.text('MODÈLES'));
       await tester.pump(const Duration(milliseconds: 400));
       expect(find.textContaining('pas encore implémentée'), findsOneWidget);
-
-      await tester.tap(find.text('IA'));
-      await tester.pump(const Duration(milliseconds: 400));
-      expect(find.textContaining('pas branchée'), findsOneWidget);
     });
   });
 

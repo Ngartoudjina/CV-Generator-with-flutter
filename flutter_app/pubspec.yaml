@@ -39,3 +39,21 @@ flutter:
 
   assets:
     - assets/images/
+
+  # Inter en fichier variable, embarqué plutôt que téléchargé à l'exécution
+  # (le paquet google_fonts va chercher ses polices sur le réseau au premier
+  # affichage — inacceptable ici, et cassé hors ligne).
+  # Trois familles, trois rôles distincts — c'est la maquette qui l'impose :
+  # serif pour les titres, monospace pour toute la métadonnée d'interface,
+  # sans-serif pour le corps. Fichiers variables embarqués plutôt que le
+  # paquet google_fonts, qui les télécharge au premier affichage.
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Variable.ttf
+    - family: PlayfairDisplay
+      fonts:
+        - asset: assets/fonts/PlayfairDisplay-Variable.ttf
+    - family: JetBrainsMono
+      fonts:
+        - asset: assets/fonts/JetBrainsMono-Variable.ttf

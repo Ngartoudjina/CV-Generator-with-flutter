@@ -13,6 +13,9 @@ class CvDocument {
     required this.title,
     required this.data,
     required this.updatedAt,
+    this.targetRole = '',
+    this.templateName = 'Ravel',
+    this.version = 1,
   }) : id = id ?? _newId();
 
   final String id;
@@ -20,13 +23,48 @@ class CvDocument {
   final CvData data;
   final DateTime updatedAt;
 
-  CvDocument copyWith({String? title, CvData? data, DateTime? updatedAt}) {
+  /// Poste visé — c'est par lui que la maquette `04_mes-cv.jpg` regroupe la
+  /// liste (« PRODUCT DESIGNER », « DESIGN LEAD »). Un même parcours donne
+  /// plusieurs CV, un par poste ciblé : c'est le cœur de l'organisation
+  /// proposée, et la notion n'existait pas dans le portage.
+  final String targetRole;
+
+  /// Modèle de mise en page — « Ravel », « Ligne ». Affiché dans la
+  /// métadonnée de chaque ligne.
+  final String templateName;
+
+  /// Numéro de version, affiché dans l'éditeur (« OVALIS · V3 »).
+  final int version;
+
+  CvDocument copyWith({
+    String? title,
+    CvData? data,
+    DateTime? updatedAt,
+    String? targetRole,
+    String? templateName,
+    int? version,
+  }) {
     return CvDocument(
       id: id,
       title: title ?? this.title,
       data: data ?? this.data,
       updatedAt: updatedAt ?? this.updatedAt,
+      targetRole: targetRole ?? this.targetRole,
+      templateName: templateName ?? this.templateName,
+      version: version ?? this.version,
     );
+  }
+
+  /// Groupe d'appartenance dans « Mes CV ».
+  ///
+  /// À défaut de poste visé explicite, on retombe sur le titre professionnel
+  /// saisi ; un document sans ni l'un ni l'autre part dans les brouillons.
+  String get group {
+    final explicit = targetRole.trim();
+    if (explicit.isNotEmpty) return explicit.toUpperCase();
+    final job = data.personalInfo.jobTitle.trim();
+    if (job.isNotEmpty && !isDraft) return job.toUpperCase();
+    return 'BROUILLON';
   }
 
   /// Score de complétude sur 100.
@@ -100,13 +138,22 @@ class CvDocument {
         'id': id,
         'title': title,
         'updatedAt': updatedAt.toIso8601String(),
+        'targetRole': targetRole,
+        'templateName': templateName,
+        'version': version,
         'data': _cvDataToJson(data),
       };
 
+  /// Les trois derniers champs sont lus avec une valeur de repli : une
+  /// bibliothèque enregistrée avant leur introduction doit continuer à se
+  /// charger, pas disparaître.
   static CvDocument fromJson(Map<String, dynamic> json) => CvDocument(
         id: json['id'] as String,
         title: json['title'] as String,
         updatedAt: DateTime.parse(json['updatedAt'] as String),
+        targetRole: json['targetRole'] as String? ?? '',
+        templateName: json['templateName'] as String? ?? 'Ravel',
+        version: json['version'] as int? ?? 1,
         data: _cvDataFromJson(json['data'] as Map<String, dynamic>),
       );
 }

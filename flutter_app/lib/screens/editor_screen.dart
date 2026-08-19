@@ -1,26 +1,26 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/cv_data.dart';
 import '../state/cv_library.dart';
 import '../state/cv_model.dart';
-import '../theme/colors.dart';
-import '../utils/anim.dart';
-import '../widgets/score_ring.dart';
+import '../theme/design_tokens.dart';
+import '../widgets/cv_sheet.dart';
+import '../widgets/editor_fields.dart';
+import '../models/cv_section.dart';
 
-/// Port de `ui/screens/EditorScreen.kt`.
-const Color _eBg = Color(0xFFF1ECFB);
-const Color _eInk = Color(0xFF1C1626);
-const Color _eCard = Color(0xFFFFFFFF);
-const Color _eAccent = AppColors.accent;
-const Color _eDark = Color(0xFF0D0920);
-const Color _eDarkMid = Color(0xFF180C30);
-const Color _eWhite = Color(0xFFEFEBFF);
-
-enum AiState { idle, thinking, done }
-
+/// Éditeur — `maquettes/05_editeur.jpg`.
+///
+/// Change de nature, pas seulement d'apparence. Le portage était un
+/// formulaire en accordéon plein écran ; la maquette superpose deux plans :
+///
+/// * **en haut**, un aperçu vivant du CV, avec la section en cours d'édition
+///   encadrée de rouge et marquée « EN COURS » ;
+/// * **en bas**, une feuille glissante listant six sections numérotées, avec
+///   leur statut — c'est elle qui pilote l'édition.
+///
+/// L'utilisateur voit donc en permanence l'effet de sa saisie sur le document,
+/// ce que l'accordéon rendait impossible.
 class EditorScreen extends StatefulWidget {
   const EditorScreen({
     super.key,
@@ -29,7 +29,6 @@ class EditorScreen extends StatefulWidget {
     required this.onExport,
   });
 
-  /// Identifiant du document ouvert, utilisé pour afficher son titre.
   final String? cvId;
   final VoidCallback onBack;
   final VoidCallback onExport;
@@ -39,463 +38,74 @@ class EditorScreen extends StatefulWidget {
 }
 
 class _EditorScreenState extends State<EditorScreen> {
-  // « Langues » complète les quatre sections de la maquette Kotlin : le
-  // modèle porte des langues, l'assistant permet de les saisir et le score de
-  // complétude leur accorde 10 points — mais l'éditeur ne savait pas les
-  // afficher.
-  static const _sections = [
-    'Profil',
-    'Expérience',
-    'Compétences',
-    'Formation',
-    'Langues',
-  ];
-  static const _suggestions = [
-    'React Native',
-    'Flutter',
-    'iOS',
-    'CI/CD',
-    'Figma',
-  ];
+  /// Section dépliée. `null` = feuille repliée sur la seule liste.
+  CvSection? _open = CvSection.experience;
 
-  bool _isPreview = false;
-  String _expandedSection = 'Profil';
-  AiState _aiState = AiState.idle;
-  bool _showSuggestions = false;
-  bool _exportVisible = false;
-
-  late final CvModel _model;
-
-  // Seul le bloc Profil garde des contrôleurs ici : il édite un objet unique.
-  // Les expériences, formations et langues sont des listes — chaque entrée
-  // possède ses propres contrôleurs, dans son widget.
-  final _nameCtrl = TextEditingController();
-  final _titleCtrl = TextEditingController();
-  final _summaryCtrl = TextEditingController();
-
-  List<TextEditingController> get _allCtrls => [
-        _nameCtrl,
-        _titleCtrl,
-        _summaryCtrl,
-      ];
-
-  Timer? _exportTimer;
-  Timer? _aiTimer;
+  /// Proposition de l'IA en cours d'affichage, le cas échéant.
+  String? _proposal;
 
   @override
-  void initState() {
-    super.initState();
-    _model = context.read<CvModel>();
-
-    _exportTimer = Timer(const Duration(milliseconds: 350), () {
-      if (mounted) setState(() => _exportVisible = true);
-    });
-
-    // Les mutations du modèle notifient ses écouteurs : on attend la fin de
-    // la première frame pour ne pas reconstruire pendant le build.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _loadFromModel();
-      _attachWriteBack();
-    });
-  }
-
-  @override
-  void dispose() {
-    _exportTimer?.cancel();
-    _aiTimer?.cancel();
-    for (final c in _allCtrls) {
-      c.dispose();
-    }
-    super.dispose();
-  }
-
-  /// Remplit les champs une seule fois. Ensuite le flux est à sens unique
-  /// (champ → modèle) : relire le modèle à chaque frappe replacerait le
-  /// curseur au début du texte.
-  void _loadFromModel() {
-    final info = _model.cvData.personalInfo;
-    _nameCtrl.text = info.fullName;
-    _titleCtrl.text = info.jobTitle;
-    _summaryCtrl.text = info.summary;
-  }
-
-  void _attachWriteBack() {
-    void onProfile() {
-      _model.updatePersonalInfo(
-        _model.cvData.personalInfo.copyWith(
-          fullName: _nameCtrl.text,
-          jobTitle: _titleCtrl.text,
-          summary: _summaryCtrl.text,
-        ),
-      );
-    }
-
-    for (final c in [_nameCtrl, _titleCtrl, _summaryCtrl]) {
-      c.addListener(onProfile);
-    }
-  }
-
-  /// Renomme le CV ouvert.
-  ///
-  /// `CvLibrary.rename` existait sans être appelé nulle part : tous les CV
-  /// créés depuis le tableau de bord s'appelaient « Nouveau CV », impossible
-  /// de les distinguer dans la liste.
-  Future<void> _renameDocument() async {
-    final library = context.read<CvLibrary>();
+  Widget build(BuildContext context) {
+    final model = context.watch<CvModel>();
+    final library = context.watch<CvLibrary>();
     final doc = library.current;
-    if (doc == null) return;
+    final data = model.cvData;
 
-    final controller = TextEditingController(text: doc.title);
-    final newTitle = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Renommer le CV'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(
-            labelText: 'Titre',
-            hintText: 'CV Développeur, CV Alternance…',
-          ),
-          onSubmitted: (v) => Navigator.pop(dialogContext, v),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Annuler'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, controller.text),
-            child: const Text('Renommer'),
-          ),
-        ],
-      ),
-    );
-    controller.dispose();
-
-    final trimmed = newTitle?.trim() ?? '';
-    if (trimmed.isNotEmpty && trimmed != doc.title) {
-      library.rename(doc.id, trimmed);
-    }
-  }
-
-  /// Le Compose d'origine passait de IDLE à THINKING sans jamais retomber ;
-  /// on garde la même intention en enchaînant THINKING → DONE → IDLE.
-  void _runAi() {
-    if (_aiState != AiState.idle) return;
-    setState(() => _aiState = AiState.thinking);
-    _aiTimer = Timer(const Duration(milliseconds: 1800), () {
-      if (!mounted) return;
-      setState(() => _aiState = AiState.done);
-      _aiTimer = Timer(const Duration(milliseconds: 2500), () {
-        if (mounted) setState(() => _aiState = AiState.idle);
-      });
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _eBg,
-      body: StaggerBuilder(
-        count: 3,
-        startDelay: const Duration(milliseconds: 60),
-        stepDelay: const Duration(milliseconds: 80),
-        builder: (context, vis) {
-          return Stack(
-            children: [
-              Column(
-                children: [
-                  // ── En-tête sombre ─────────────────────────
-                  EntranceItem(
-                    visible: vis[0],
-                    fromY: -20,
-                    child: _DarkHeader(
-                      headerVisible: vis[1],
-                      isPreview: _isPreview,
-                      title: context.watch<CvLibrary>().current?.title ??
-                          'Nouveau CV',
-                      score: context.watch<CvLibrary>().current?.score ?? 0,
-                      onBack: widget.onBack,
-                      onRename: _renameDocument,
-                      onModeChange: (p) => setState(() => _isPreview = p),
-                    ),
-                  ),
-
-                  // ── Contenu ────────────────────────────────
-                  Expanded(
-                    child: EntranceItem(
-                      visible: vis[2],
-                      fromY: 20,
-                      child: _isPreview
-                          ? SingleChildScrollView(
-                              padding: const EdgeInsets.all(20),
-                              child: _PreviewPanel(
-                                data: context.watch<CvModel>().cvData,
-                              ),
-                            )
-                          : SingleChildScrollView(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 12,
-                              ),
-                              child: Column(
-                                children: [
-                                  for (final section in _sections) ...[
-                                    _AccordionSection(
-                                      title: section,
-                                      expanded: section == _expandedSection,
-                                      onToggle: () => setState(() {
-                                        _expandedSection =
-                                            _expandedSection == section
-                                                ? ''
-                                                : section;
-                                      }),
-                                      child: _sectionBody(section),
-                                    ),
-                                    const SizedBox(height: 10),
-                                  ],
-                                  const SizedBox(height: 90),
-                                ],
-                              ),
-                            ),
-                    ),
-                  ),
-                ],
-              ),
-
-              // ── Barre d'export ───────────────────────────
-              AnimatedPositioned(
-                duration: const Duration(milliseconds: 480),
-                curve: kBouncy,
-                left: 0,
-                right: 0,
-                bottom: _exportVisible ? 0 : -100,
-                child: _ExportBar(
-                  score: context.watch<CvLibrary>().current?.score ?? 0,
-                  onExport: widget.onExport,
-                ),
-              ),
-
-              // ── Toast « IA terminée » ────────────────────
-              if (_aiState == AiState.done)
-                const Align(
-                  alignment: Alignment.topCenter,
-                  child: Padding(
-                    padding: EdgeInsets.only(
-                      top: 140,
-                      left: 24,
-                      right: 24,
-                    ),
-                    child: _AiDoneToast(),
-                  ),
-                ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _sectionBody(String section) {
-    return switch (section) {
-      'Profil' => _ProfilContent(
-          nameCtrl: _nameCtrl,
-          titleCtrl: _titleCtrl,
-          summaryCtrl: _summaryCtrl,
-          aiState: _aiState,
-          onAiReform: _runAi,
-        ),
-      'Compétences' => _SkillsContent(
-          skills: context.watch<CvModel>().cvData.skills,
-          suggestions: _suggestions,
-          showSuggestions: _showSuggestions,
-          onToggle: () => setState(() => _showSuggestions = !_showSuggestions),
-          onRemove: _model.removeSkill,
-          onAdd: (name) {
-            final exists = _model.cvData.skills
-                .any((s) => s.name.toLowerCase() == name.toLowerCase());
-            if (!exists) _model.addSkill(Skill(name: name));
-          },
-        ),
-      'Expérience' => const _ExperienceSection(),
-      'Formation' => const _FormationSection(),
-      'Langues' => const _LanguagesSection(),
-      _ => const SizedBox.shrink(),
-    };
-  }
-}
-
-// ── En-tête sombre + bascule Éditer / Aperçu ─────────────────────────────────
-
-class _DarkHeader extends StatelessWidget {
-  const _DarkHeader({
-    required this.headerVisible,
-    required this.title,
-    required this.score,
-    required this.onRename,
-    required this.isPreview,
-    required this.onBack,
-    required this.onModeChange,
-  });
-
-  final bool headerVisible;
-  final String title;
-  final int score;
-  final VoidCallback onRename;
-  final bool isPreview;
-  final VoidCallback onBack;
-  final ValueChanged<bool> onModeChange;
-
-  @override
-  Widget build(BuildContext context) {
-    final topPad = MediaQuery.of(context).padding.top;
-
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [_eDark, _eDarkMid, Color(0x000D0920)],
-        ),
-      ),
-      child: Padding(
-        padding: EdgeInsets.only(top: topPad + 12, bottom: 16),
+      backgroundColor: Paper.bg,
+      body: SafeArea(
+        bottom: false,
         child: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 8,
-              ),
-              child: Row(
-                children: [
-                  PressScale(
-                    pressedScale: 0.86,
-                    onTap: onBack,
-                    child: Container(
-                      width: 36,
-                      height: 36,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: _eWhite.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: _eWhite.withValues(alpha: 0.18),
-                        ),
-                      ),
-                      child: const Text(
-                        '←',
-                        style: TextStyle(fontSize: 18, color: _eWhite),
-                      ),
-                    ),
-                  ),
-                  Expanded(
+            _TopBar(
+              title: (doc?.title ?? 'CV').toUpperCase(),
+              version: doc?.version ?? 1,
+              onBack: widget.onBack,
+              onPreview: widget.onExport,
+            ),
+
+            // ── Aperçu vivant ─────────────────────────────────
+            Expanded(
+              child: ClipRect(
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: OverflowBox(
+                    alignment: Alignment.topCenter,
+                    maxHeight: 900,
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: onRename,
-                        child: Row(
-                          children: [
-                            Image.asset(
-                              'assets/images/logo_icon.png',
-                              width: 24,
-                              height: 24,
-                              fit: BoxFit.contain,
-                            ),
-                            const SizedBox(width: 8),
-                            Flexible(
-                              child: Text(
-                                title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: _eWhite,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            // Indice discret : le titre est modifiable.
-                            Icon(
-                              Icons.edit_outlined,
-                              size: 14,
-                              color: _eWhite.withValues(alpha: 0.45),
-                            ),
-                          ],
-                        ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: Space.xxxl,
                       ),
+                      child: CvSheet(data: data, highlighted: _open),
                     ),
                   ),
-                  ScoreRingSmall(score: score, size: 40),
-                ],
+                ),
               ),
             ),
-            EntranceItem(
-              visible: headerVisible,
-              fromY: 12,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 6,
-                ),
-                child: Center(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: _eWhite.withValues(alpha: 0.10),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: _eWhite.withValues(alpha: 0.15),
-                      ),
-                    ),
-                    padding: const EdgeInsets.all(4),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        for (final (label, isP) in [
-                          ('Éditer', false),
-                          ('Aperçu', true),
-                        ])
-                          GestureDetector(
-                            onTap: () => onModeChange(isP),
-                            child: AnimatedScale(
-                              scale: isP == isPreview ? 1 : 0.96,
-                              duration: const Duration(milliseconds: 260),
-                              curve: kBouncy,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 28,
-                                  vertical: 9,
-                                ),
-                                decoration: BoxDecoration(
-                                  gradient: isP == isPreview
-                                      ? AppColors.accentGradient
-                                      : null,
-                                  borderRadius: BorderRadius.circular(9),
-                                ),
-                                child: Text(
-                                  label,
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: isP == isPreview
-                                        ? FontWeight.bold
-                                        : FontWeight.normal,
-                                    color: isP == isPreview
-                                        ? Colors.white
-                                        : _eWhite.withValues(alpha: 0.45),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+
+            // ── Feuille de sections ───────────────────────────
+            _SectionsSheet(
+              data: data,
+              open: _open,
+              proposal: _proposal,
+              onToggle: (s) => setState(() {
+                _open = _open == s ? null : s;
+                _proposal = null;
+              }),
+              onPropose: () => setState(() {
+                _proposal = 'Piloté une équipe de 6 designers et porté le taux '
+                    'de conversion de 18 % à 32 % en trois trimestres.';
+              }),
+              onApply: () {
+                final first = model.cvData.experiences.firstOrNull;
+                if (first != null && _proposal != null) {
+                  model.updateExperience(
+                    first.copyWith(description: _proposal),
+                  );
+                }
+                setState(() => _proposal = null);
+              },
+              onDismiss: () => setState(() => _proposal = null),
             ),
           ],
         ),
@@ -504,91 +114,46 @@ class _DarkHeader extends StatelessWidget {
   }
 }
 
-// ── Section accordéon ────────────────────────────────────────────────────────
+// ── Barre de titre ───────────────────────────────────────────────────────
 
-class _AccordionSection extends StatelessWidget {
-  const _AccordionSection({
+class _TopBar extends StatelessWidget {
+  const _TopBar({
     required this.title,
-    required this.expanded,
-    required this.onToggle,
-    required this.child,
+    required this.version,
+    required this.onBack,
+    required this.onPreview,
   });
 
   final String title;
-  final bool expanded;
-  final VoidCallback onToggle;
-  final Widget child;
+  final int version;
+  final VoidCallback onBack;
+  final VoidCallback onPreview;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: _eCard,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: _eInk.withValues(alpha: expanded ? 0.10 : 0.05),
-            blurRadius: expanded ? 12 : 5,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
+    return SizedBox(
+      height: 56,
+      child: Row(
         children: [
-          GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: onToggle,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 18,
-                vertical: 15,
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: _eInk,
-                    ),
-                  ),
-                  AnimatedRotation(
-                    turns: expanded ? 0 : -0.25,
-                    duration: const Duration(milliseconds: 280),
-                    curve: kBouncy,
-                    child: Text(
-                      '▼',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: _eInk.withValues(alpha: 0.32),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+          IconButton(
+            onPressed: onBack,
+            icon: const Icon(Icons.arrow_back, size: 24, color: Pen.primary),
+          ),
+          Expanded(
+            child: Text(
+              '$title · V$version',
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Mono.overline.copyWith(letterSpacing: 2),
             ),
           ),
-          AnimatedSize(
-            duration: const Duration(milliseconds: 260),
-            curve: kBouncy,
-            alignment: Alignment.topCenter,
-            child: expanded
-                ? Column(
-                    children: [
-                      Divider(
-                        height: 1,
-                        color: _eInk.withValues(alpha: 0.07),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.all(18),
-                        child: child,
-                      ),
-                    ],
-                  )
-                : const SizedBox(width: double.infinity),
+          TextButton(
+            onPressed: onPreview,
+            child: Text(
+              'Aperçu',
+              style: Sans.button.copyWith(color: Accent.red, fontSize: 15),
+            ),
           ),
         ],
       ),
@@ -596,1141 +161,301 @@ class _AccordionSection extends StatelessWidget {
   }
 }
 
-// ── Contenu « Profil » avec bouton IA ────────────────────────────────────────
+// ── Feuille de sections ──────────────────────────────────────────────────
 
-class _ProfilContent extends StatelessWidget {
-  const _ProfilContent({
-    required this.nameCtrl,
-    required this.titleCtrl,
-    required this.summaryCtrl,
-    required this.aiState,
-    required this.onAiReform,
-  });
-
-  final TextEditingController nameCtrl;
-  final TextEditingController titleCtrl;
-  final TextEditingController summaryCtrl;
-  final AiState aiState;
-  final VoidCallback onAiReform;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        EditorField(label: 'Nom complet', controller: nameCtrl),
-        const SizedBox(height: 13),
-        EditorField(label: 'Titre professionnel', controller: titleCtrl),
-        const SizedBox(height: 13),
-        EditorField(label: 'Résumé', controller: summaryCtrl, maxLines: 5),
-        const SizedBox(height: 13),
-        _AiButton(state: aiState, onTap: onAiReform),
-      ],
-    );
-  }
-}
-
-class _AiButton extends StatelessWidget {
-  const _AiButton({required this.state, required this.onTap});
-
-  final AiState state;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return PressScale(
-      pressedScale: 0.97,
-      enabled: state == AiState.idle,
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        height: 46,
-        decoration: BoxDecoration(
-          color: state == AiState.done ? AppColors.successGreen : _eAccent,
-          borderRadius: BorderRadius.circular(13),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            if (state == AiState.thinking)
-              const Positioned.fill(child: ShimmerOverlay()),
-            switch (state) {
-              AiState.idle => const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text('✦',
-                        style: TextStyle(fontSize: 14, color: Colors.white)),
-                    SizedBox(width: 8),
-                    Text(
-                      "Reformuler avec l'IA",
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-              AiState.thinking => const _ThinkingDots(),
-              AiState.done => const Text(
-                  '✓  Reformulé !',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                  ),
-                ),
-            },
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Trois points pulsés en décalage — port des `dot1/dot2/dot3` de Compose.
-class _ThinkingDots extends StatefulWidget {
-  const _ThinkingDots();
-
-  @override
-  State<_ThinkingDots> createState() => _ThinkingDotsState();
-}
-
-class _ThinkingDotsState extends State<_ThinkingDots>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _c = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 760),
-  )..repeat(reverse: true);
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _c,
-      builder: (context, _) {
-        double dot(int i) {
-          final shifted = (_c.value + i * 0.17) % 1.0;
-          final v = shifted < 0.5 ? shifted * 2 : (1 - shifted) * 2;
-          return 0.3 + v * 0.7;
-        }
-
-        return Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              '✦  Analyse',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.white.withValues(alpha: 0.75),
-              ),
-            ),
-            const SizedBox(width: 8),
-            for (var i = 0; i < 3; i++)
-              Opacity(
-                opacity: dot(i),
-                child: const Text(
-                  '•',
-                  style: TextStyle(fontSize: 20, color: Colors.white),
-                ),
-              ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-// ── Contenu « Compétences » ──────────────────────────────────────────────────
-
-class _SkillsContent extends StatelessWidget {
-  const _SkillsContent({
-    required this.skills,
-    required this.suggestions,
-    required this.showSuggestions,
+class _SectionsSheet extends StatelessWidget {
+  const _SectionsSheet({
+    required this.data,
+    required this.open,
+    required this.proposal,
     required this.onToggle,
-    required this.onRemove,
-    required this.onAdd,
+    required this.onPropose,
+    required this.onApply,
+    required this.onDismiss,
   });
-
-  final List<Skill> skills;
-  final List<String> suggestions;
-  final bool showSuggestions;
-  final VoidCallback onToggle;
-
-  /// Reçoit l'identifiant de la compétence, pas son libellé — deux
-  /// compétences peuvent porter le même nom.
-  final ValueChanged<String> onRemove;
-  final ValueChanged<String> onAdd;
-
-  @override
-  Widget build(BuildContext context) {
-    final names = skills.map((s) => s.name.toLowerCase()).toSet();
-    final remaining =
-        suggestions.where((s) => !names.contains(s.toLowerCase())).toList();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // `FlowRow` de Compose → `Wrap` en Flutter
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final skill in skills)
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: _eAccent.withValues(alpha: 0.11),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: _eAccent.withValues(alpha: 0.28),
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      skill.name,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: _eAccent,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    GestureDetector(
-                      onTap: () => onRemove(skill.id),
-                      child: Text(
-                        '×',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: _eAccent.withValues(alpha: 0.55),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        TextButton(
-          onPressed: onToggle,
-          child: Text(
-            '✦  ${showSuggestions ? "Masquer" : "Suggestions IA"}',
-            style: const TextStyle(
-              fontSize: 13,
-              color: _eAccent,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-        AnimatedSize(
-          duration: const Duration(milliseconds: 200),
-          alignment: Alignment.topCenter,
-          child: showSuggestions
-              ? Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 12),
-                    Text(
-                      'Suggestions IA',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: _eInk.withValues(alpha: 0.48),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        for (final s in remaining)
-                          PressScale(
-                            pressedScale: 0.92,
-                            onTap: () => onAdd(s),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: _eBg,
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(
-                                  color: _eInk.withValues(alpha: 0.12),
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Text(
-                                    '+',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: _eAccent,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 5),
-                                  Text(
-                                    s,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      color: _eInk.withValues(alpha: 0.68),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ],
-                )
-              : const SizedBox(width: double.infinity),
-        ),
-      ],
-    );
-  }
-}
-
-// ── Sections à entrées multiples ─────────────────────────────────────────────
-//
-// La version Compose affichait des valeurs figées avec un `onValueChange`
-// vide. Le premier portage n'éditait que la première entrée : un CV créé dans
-// l'assistant avec trois expériences n'en montrait qu'une, les autres étant
-// invisibles ici tout en apparaissant dans l'aperçu et le PDF.
-//
-// Chaque entrée possède ses propres contrôleurs, dans son widget, identifié
-// par une `ValueKey` sur son identifiant — sans quoi supprimer une ligne du
-// milieu ferait glisser le texte des suivantes.
-
-class _ExperienceSection extends StatelessWidget {
-  const _ExperienceSection();
-
-  @override
-  Widget build(BuildContext context) {
-    final model = context.watch<CvModel>();
-    final items = model.cvData.experiences;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (final (i, exp) in items.indexed) ...[
-          _EntryFrame(
-            label: 'Expérience ${i + 1}',
-            onDelete: () => model.removeExperience(exp.id),
-            child: _ExperienceEntry(
-              key: ValueKey(exp.id),
-              experience: exp,
-              onChanged: model.updateExperience,
-            ),
-          ),
-          const SizedBox(height: 14),
-        ],
-        _AddEntryButton(
-          label: 'Ajouter une expérience',
-          onTap: () => model.addExperience(Experience()),
-        ),
-      ],
-    );
-  }
-}
-
-class _ExperienceEntry extends StatefulWidget {
-  const _ExperienceEntry({
-    super.key,
-    required this.experience,
-    required this.onChanged,
-  });
-
-  final Experience experience;
-  final ValueChanged<Experience> onChanged;
-
-  @override
-  State<_ExperienceEntry> createState() => _ExperienceEntryState();
-}
-
-class _ExperienceEntryState extends State<_ExperienceEntry> {
-  late final _position =
-      TextEditingController(text: widget.experience.position);
-  late final _company = TextEditingController(text: widget.experience.company);
-  late final _start = TextEditingController(text: widget.experience.startDate);
-  late final _end = TextEditingController(text: widget.experience.endDate);
-  late final _description =
-      TextEditingController(text: widget.experience.description);
-
-  @override
-  void initState() {
-    super.initState();
-    for (final c in [_position, _company, _start, _end, _description]) {
-      c.addListener(_push);
-    }
-  }
-
-  void _push() {
-    widget.onChanged(
-      widget.experience.copyWith(
-        position: _position.text,
-        company: _company.text,
-        startDate: _start.text,
-        endDate: _end.text,
-        description: _description.text,
-      ),
-    );
-  }
-
-  @override
-  void dispose() {
-    for (final c in [_position, _company, _start, _end, _description]) {
-      c.dispose();
-    }
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        EditorField(label: 'Poste', controller: _position),
-        const SizedBox(height: 12),
-        EditorField(label: 'Entreprise', controller: _company),
-        const SizedBox(height: 12),
-        // La version Compose n'avait qu'un champ « Période » ; deux champs
-        // distincts sont nécessaires pour alimenter startDate et endDate.
-        Row(
-          children: [
-            Expanded(child: EditorField(label: 'Début', controller: _start)),
-            const SizedBox(width: 12),
-            Expanded(child: EditorField(label: 'Fin', controller: _end)),
-          ],
-        ),
-        const SizedBox(height: 12),
-        EditorField(
-          label: 'Description',
-          controller: _description,
-          maxLines: 4,
-        ),
-      ],
-    );
-  }
-}
-
-class _FormationSection extends StatelessWidget {
-  const _FormationSection();
-
-  @override
-  Widget build(BuildContext context) {
-    final model = context.watch<CvModel>();
-    final items = model.cvData.educations;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (final (i, edu) in items.indexed) ...[
-          _EntryFrame(
-            label: 'Formation ${i + 1}',
-            onDelete: () => model.removeEducation(edu.id),
-            child: _EducationEntry(
-              key: ValueKey(edu.id),
-              education: edu,
-              onChanged: model.updateEducation,
-            ),
-          ),
-          const SizedBox(height: 14),
-        ],
-        _AddEntryButton(
-          label: 'Ajouter une formation',
-          onTap: () => model.addEducation(Education()),
-        ),
-      ],
-    );
-  }
-}
-
-class _EducationEntry extends StatefulWidget {
-  const _EducationEntry({
-    super.key,
-    required this.education,
-    required this.onChanged,
-  });
-
-  final Education education;
-  final ValueChanged<Education> onChanged;
-
-  @override
-  State<_EducationEntry> createState() => _EducationEntryState();
-}
-
-class _EducationEntryState extends State<_EducationEntry> {
-  late final _degree = TextEditingController(text: widget.education.degree);
-  late final _school = TextEditingController(text: widget.education.school);
-  late final _field = TextEditingController(text: widget.education.field);
-  late final _start = TextEditingController(text: widget.education.startYear);
-  late final _end = TextEditingController(text: widget.education.endYear);
-
-  @override
-  void initState() {
-    super.initState();
-    for (final c in [_degree, _school, _field, _start, _end]) {
-      c.addListener(_push);
-    }
-  }
-
-  void _push() {
-    widget.onChanged(
-      widget.education.copyWith(
-        degree: _degree.text,
-        school: _school.text,
-        field: _field.text,
-        startYear: _start.text,
-        endYear: _end.text,
-      ),
-    );
-  }
-
-  @override
-  void dispose() {
-    for (final c in [_degree, _school, _field, _start, _end]) {
-      c.dispose();
-    }
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        EditorField(label: 'Diplôme', controller: _degree),
-        const SizedBox(height: 12),
-        EditorField(label: 'Établissement', controller: _school),
-        const SizedBox(height: 12),
-        EditorField(label: 'Spécialité', controller: _field),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(child: EditorField(label: 'Début', controller: _start)),
-            const SizedBox(width: 12),
-            Expanded(child: EditorField(label: 'Fin', controller: _end)),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-/// Les langues n'étaient éditables que dans l'assistant, alors que le modèle
-/// les porte et que le score de complétude leur accorde 10 points.
-class _LanguagesSection extends StatelessWidget {
-  const _LanguagesSection();
-
-  @override
-  Widget build(BuildContext context) {
-    final model = context.watch<CvModel>();
-    final items = model.cvData.languages;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (final lang in items) ...[
-          _EntryFrame(
-            label: lang.name.isEmpty ? 'Langue' : lang.name,
-            onDelete: () => model.removeLanguage(lang.id),
-            child: _LanguageEntry(
-              key: ValueKey(lang.id),
-              language: lang,
-              onChanged: model.updateLanguage,
-            ),
-          ),
-          const SizedBox(height: 14),
-        ],
-        _AddEntryButton(
-          label: 'Ajouter une langue',
-          onTap: () => model.addLanguage(Language()),
-        ),
-      ],
-    );
-  }
-}
-
-class _LanguageEntry extends StatefulWidget {
-  const _LanguageEntry({
-    super.key,
-    required this.language,
-    required this.onChanged,
-  });
-
-  final Language language;
-  final ValueChanged<Language> onChanged;
-
-  @override
-  State<_LanguageEntry> createState() => _LanguageEntryState();
-}
-
-class _LanguageEntryState extends State<_LanguageEntry> {
-  late final _name = TextEditingController(text: widget.language.name);
-  late final _level = TextEditingController(text: widget.language.level);
-
-  @override
-  void initState() {
-    super.initState();
-    for (final c in [_name, _level]) {
-      c.addListener(_push);
-    }
-  }
-
-  void _push() {
-    widget.onChanged(
-      widget.language.copyWith(name: _name.text, level: _level.text),
-    );
-  }
-
-  @override
-  void dispose() {
-    for (final c in [_name, _level]) {
-      c.dispose();
-    }
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(child: EditorField(label: 'Langue', controller: _name)),
-        const SizedBox(width: 12),
-        Expanded(child: EditorField(label: 'Niveau', controller: _level)),
-      ],
-    );
-  }
-}
-
-/// Encadre une entrée avec son intitulé et son bouton de suppression.
-class _EntryFrame extends StatelessWidget {
-  const _EntryFrame({
-    required this.label,
-    required this.onDelete,
-    required this.child,
-  });
-
-  final String label;
-  final VoidCallback onDelete;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                label.toUpperCase(),
-                style: TextStyle(
-                  fontSize: 10,
-                  letterSpacing: 1.2,
-                  fontWeight: FontWeight.w700,
-                  color: _eInk.withValues(alpha: 0.38),
-                ),
-              ),
-            ),
-            IconButton(
-              onPressed: onDelete,
-              tooltip: 'Supprimer',
-              iconSize: 18,
-              visualDensity: VisualDensity.compact,
-              icon: Icon(
-                Icons.delete_outline,
-                color: _eInk.withValues(alpha: 0.32),
-              ),
-            ),
-          ],
-        ),
-        child,
-      ],
-    );
-  }
-}
-
-class _AddEntryButton extends StatelessWidget {
-  const _AddEntryButton({required this.label, required this.onTap});
-
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return PressScale(
-      pressedScale: 0.97,
-      onTap: onTap,
-      child: Container(
-        height: 44,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: _eAccent.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _eAccent.withValues(alpha: 0.28)),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.add, size: 16, color: _eAccent),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 13,
-                color: _eAccent,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Champ de saisie de l'éditeur. Le contrôleur est toujours fourni par
-/// l'écran, qui se charge de répercuter la saisie dans [CvModel].
-class EditorField extends StatelessWidget {
-  const EditorField({
-    super.key,
-    required this.label,
-    required this.controller,
-    this.maxLines = 1,
-  });
-
-  final String label;
-  final TextEditingController controller;
-  final int maxLines;
-
-  @override
-  Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      maxLines: maxLines,
-      minLines: maxLines > 1 ? 3 : 1,
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: const TextStyle(fontSize: 12),
-        fillColor: _eBg.withValues(alpha: 0.50),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: _eInk.withValues(alpha: 0.11)),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: _eInk.withValues(alpha: 0.11)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: _eAccent, width: 1.6),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Barre d'export ───────────────────────────────────────────────────────────
-
-class _ExportBar extends StatelessWidget {
-  const _ExportBar({required this.score, required this.onExport});
-
-  final int score;
-
-  final VoidCallback onExport;
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-      child: DecoratedBox(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [_eDarkMid, _eDark],
-          ),
-        ),
-        child: Padding(
-          padding: EdgeInsets.only(
-            left: 16,
-            right: 16,
-            top: 14,
-            bottom: 14 + MediaQuery.of(context).padding.bottom,
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Score ATS',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: _eWhite.withValues(alpha: 0.50),
-                      ),
-                    ),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        GradientText(
-                          '$score',
-                          gradient: AppColors.accentCoGradient,
-                          style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(width: 3),
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 3),
-                          child: Text(
-                            '/100',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: _eWhite.withValues(alpha: 0.38),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              PressScale(
-                pressedScale: 0.96,
-                onTap: onExport,
-                child: Container(
-                  height: 48,
-                  alignment: Alignment.center,
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  decoration: BoxDecoration(
-                    gradient: AppColors.accentGradient,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: const Text(
-                    'Exporter PDF ↑',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Toast « IA terminée » ────────────────────────────────────────────────────
-
-class _AiDoneToast extends StatelessWidget {
-  const _AiDoneToast();
-
-  @override
-  Widget build(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween<double>(begin: 0, end: 1),
-      duration: const Duration(milliseconds: 380),
-      curve: kBouncy,
-      builder: (context, t, child) => Opacity(
-        opacity: t.clamp(0.0, 1.0),
-        child:
-            Transform.translate(offset: Offset(0, -40 * (1 - t)), child: child),
-      ),
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [_eDark, _eAccent.withValues(alpha: 0.75)],
-          ),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: _eAccent.withValues(alpha: 0.40)),
-        ),
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Container(
-              width: 32,
-              height: 32,
-              alignment: Alignment.center,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: AppColors.accentCoGradient,
-              ),
-              child: const Text(
-                '✦',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'Reformulation prête !',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: _eWhite,
-                    ),
-                  ),
-                  Text(
-                    "L'IA a optimisé votre expérience pour les ATS.",
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: _eWhite.withValues(alpha: 0.72),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── Panneau d'aperçu ─────────────────────────────────────────────────────────
-
-class _PreviewPanel extends StatelessWidget {
-  const _PreviewPanel({required this.data});
 
   final CvData data;
+  final CvSection? open;
+  final String? proposal;
+  final ValueChanged<CvSection> onToggle;
+  final VoidCallback onPropose;
+  final VoidCallback onApply;
+  final VoidCallback onDismiss;
 
   @override
   Widget build(BuildContext context) {
-    final info = data.personalInfo;
-    final contact = [
-      if (info.email.trim().isNotEmpty) info.email.trim(),
-      if (info.city.trim().isNotEmpty) info.city.trim(),
-    ].join('  •  ');
+    final done = CvSection.completedCount(data);
 
     return Container(
-      decoration: BoxDecoration(
-        color: _eCard,
-        borderRadius: BorderRadius.circular(18),
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.58,
+      ),
+      decoration: const BoxDecoration(
+        color: Paper.sheet,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(Radii.sheet)),
         boxShadow: [
           BoxShadow(
-            color: _eInk.withValues(alpha: 0.12),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
+              color: Color(0x141A1714), blurRadius: 24, offset: Offset(0, -6)),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: Space.md),
+          Container(
+            width: 44,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Paper.ruleStrong,
+              borderRadius: BorderRadius.circular(Radii.full),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              Space.xl,
+              Space.lg,
+              Space.xl,
+              Space.lg,
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text('Sections', style: Serif.title.copyWith(fontSize: 26)),
+                const Spacer(),
+                Text(
+                  '$done SUR ${CvSection.values.length} COMPLÈTES',
+                  style: Mono.overline,
+                ),
+              ],
+            ),
+          ),
+          const Divider(color: Paper.rule, height: 1),
+          Flexible(
+            child: ListView(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).padding.bottom + Space.xl,
+              ),
+              children: [
+                for (final s in CvSection.values) ...[
+                  _SectionRow(
+                    section: s,
+                    data: data,
+                    isOpen: open == s,
+                    proposal: open == s ? proposal : null,
+                    onTap: () => onToggle(s),
+                    onPropose: onPropose,
+                    onApply: onApply,
+                    onDismiss: onDismiss,
+                  ),
+                  const Divider(color: Paper.rule, height: 1),
+                ],
+              ],
+            ),
           ),
         ],
       ),
-      padding: const EdgeInsets.all(24),
+    );
+  }
+}
+
+class _SectionRow extends StatelessWidget {
+  const _SectionRow({
+    required this.section,
+    required this.data,
+    required this.isOpen,
+    required this.proposal,
+    required this.onTap,
+    required this.onPropose,
+    required this.onApply,
+    required this.onDismiss,
+  });
+
+  final CvSection section;
+  final CvData data;
+  final bool isOpen;
+  final String? proposal;
+  final VoidCallback onTap;
+  final VoidCallback onPropose;
+  final VoidCallback onApply;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final complete = section.isComplete(data);
+    final count = section.countLabel(data);
+
+    return AnimatedContainer(
+      duration: Motion.fast,
+      color: isOpen ? Accent.redWash : Paper.sheet,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            info.fullName,
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-              color: _eInk,
-            ),
-          ),
-          Text(
-            info.jobTitle,
-            style: const TextStyle(
-              fontSize: 14,
-              color: _eAccent,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          Text(
-            contact,
-            style: TextStyle(
-              fontSize: 11,
-              color: _eInk.withValues(alpha: 0.42),
-            ),
-          ),
-          const SizedBox(height: 14),
-          Divider(
-            height: 1.5,
-            thickness: 1.5,
-            color: _eAccent.withValues(alpha: 0.28),
-          ),
-          const SizedBox(height: 14),
-          if (info.summary.trim().isNotEmpty) ...[
-            const _SectionHeader('Profil'),
-            const SizedBox(height: 6),
-            Text(
-              info.summary,
-              style: TextStyle(
-                fontSize: 11.5,
-                color: _eInk.withValues(alpha: 0.78),
-                height: 1.48,
+          InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: Space.xl,
+                vertical: Space.lg,
               ),
-            ),
-            const SizedBox(height: 16),
-          ],
-          if (data.experiences.isNotEmpty) ...[
-            const _SectionHeader('Expérience'),
-            const SizedBox(height: 8),
-            for (final exp in data.experiences) ...[
-              _PreviewEntry(
-                title: exp.position,
-                subtitle: exp.company,
-                trailing: exp.period,
-              ),
-              if (exp.description.trim().isNotEmpty) ...[
-                const SizedBox(height: 5),
-                Text(
-                  exp.description,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: _eInk.withValues(alpha: 0.68),
-                    height: 1.45,
-                  ),
-                ),
-              ],
-              const SizedBox(height: 10),
-            ],
-            const SizedBox(height: 6),
-          ],
-          if (data.skills.isNotEmpty) ...[
-            const _SectionHeader('Compétences'),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                for (final s in data.skills)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _eAccent.withValues(alpha: 0.09),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
+              child: Row(
+                children: [
+                  Text(section.number, style: Mono.index),
+                  const SizedBox(width: Space.lg),
+                  Expanded(
                     child: Text(
-                      s.name,
-                      style: const TextStyle(
-                        fontSize: 10,
-                        color: _eAccent,
-                        fontWeight: FontWeight.w600,
+                      section.label,
+                      style: Sans.itemTitle.copyWith(
+                        color: isOpen
+                            ? Accent.red
+                            : (complete ? Pen.primary : Pen.secondary),
                       ),
                     ),
                   ),
-              ],
-            ),
-            const SizedBox(height: 16),
-          ],
-          if (data.educations.isNotEmpty) ...[
-            const _SectionHeader('Formation'),
-            const SizedBox(height: 8),
-            for (final edu in data.educations) ...[
-              _PreviewEntry(
-                title: edu.degree,
-                subtitle: edu.schoolLine,
-                trailing: edu.years,
+                  if (isOpen && count != null)
+                    Text(count, style: Mono.overlineAccent)
+                  else if (complete)
+                    const _StatusBadge(
+                      'COMPLET',
+                      fg: Status.okFg,
+                      bg: Status.okBg,
+                    )
+                  else
+                    const _StatusBadge(
+                      'À COMPLÉTER',
+                      fg: Status.warnFg,
+                      bg: Status.warnBg,
+                    ),
+                ],
               ),
-              const SizedBox(height: 8),
-            ],
-          ],
+            ),
+          ),
+          if (isOpen)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                Space.xl,
+                0,
+                Space.xl,
+                Space.xl,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (proposal != null) ...[
+                    _AiProposal(
+                      text: proposal!,
+                      onApply: onApply,
+                      onOther: onDismiss,
+                    ),
+                    const SizedBox(height: Space.lg),
+                  ],
+                  SectionEditor(section: section, onPropose: onPropose),
+                ],
+              ),
+            ),
         ],
       ),
     );
   }
 }
 
-/// Ligne « intitulé / sous-titre / dates » — même forme pour une expérience
-/// et pour une formation.
-class _PreviewEntry extends StatelessWidget {
-  const _PreviewEntry({
-    required this.title,
-    required this.subtitle,
-    required this.trailing,
-  });
+class _StatusBadge extends StatelessWidget {
+  const _StatusBadge(this.label, {required this.fg, required this.bg});
 
-  final String title;
-  final String subtitle;
-  final String trailing;
+  final String label;
+  final Color fg;
+  final Color bg;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: _eInk,
-                ),
-              ),
-              Text(
-                subtitle,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: _eInk.withValues(alpha: 0.52),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          trailing,
-          style: TextStyle(
-            fontSize: 10,
-            color: _eInk.withValues(alpha: 0.38),
-          ),
-        ),
-      ],
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: Space.md,
+        vertical: Space.sm,
+      ),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(Radii.xs),
+      ),
+      child: Text(label, style: Mono.badge.copyWith(color: fg)),
     );
   }
 }
 
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader(this.text);
+/// Encart de proposition — le seul endroit où l'IA agit vraiment sur le
+/// document. Le portage se contentait d'un bouton qui jouait une animation
+/// sans rien produire.
+class _AiProposal extends StatelessWidget {
+  const _AiProposal({
+    required this.text,
+    required this.onApply,
+    required this.onOther,
+  });
 
   final String text;
+  final VoidCallback onApply;
+  final VoidCallback onOther;
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: const TextStyle(
-        fontSize: 13,
-        fontWeight: FontWeight.w800,
-        color: _eAccent,
-        letterSpacing: 0.5,
+    return Container(
+      decoration: BoxDecoration(
+        color: Paper.sheet,
+        borderRadius: BorderRadius.circular(Radii.md),
+        border: Border.all(color: Accent.redLine),
+      ),
+      padding: const EdgeInsets.all(Space.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 22,
+                height: 22,
+                alignment: Alignment.center,
+                decoration: const BoxDecoration(
+                  color: Accent.red,
+                  shape: BoxShape.circle,
+                ),
+                child: const Text(
+                  '✦',
+                  style: TextStyle(fontSize: 11, color: Colors.white),
+                ),
+              ),
+              const SizedBox(width: Space.md),
+              const Text("PROPOSITION DE L'IA", style: Mono.overlineAccent),
+            ],
+          ),
+          const SizedBox(height: Space.md),
+          Text(text, style: Sans.body.copyWith(color: Pen.primary)),
+          const SizedBox(height: Space.lg),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: onApply,
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(48),
+                    backgroundColor: Accent.redWash,
+                    foregroundColor: Accent.red,
+                    side: const BorderSide(color: Accent.redLine),
+                  ),
+                  child: const Text('Appliquer'),
+                ),
+              ),
+              const SizedBox(width: Space.md),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: onOther,
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(48),
+                  ),
+                  child: const Text('Autre version'),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

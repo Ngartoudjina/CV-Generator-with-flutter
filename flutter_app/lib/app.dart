@@ -163,6 +163,14 @@ class _AppNavigatorState extends State<AppNavigator>
     _go(EditorRoute(id));
   }
 
+  /// L'onboarding n'est plus une présentation : il remplit un vrai CV. On lui
+  /// en prépare donc un neuf, pour qu'il n'écrase pas l'exemple de départ.
+  void _startOnboarding() {
+    _library.createNew();
+    _model.load(const CvData());
+    _go(const OnboardingRoute());
+  }
+
   /// Crée un CV vierge et ouvre l'assistant dessus.
   void _createDocument() {
     _library.createNew();
@@ -195,7 +203,7 @@ class _AppNavigatorState extends State<AppNavigator>
   Widget build(BuildContext context) {
     return switch (_screen) {
       WelcomeRoute() => WelcomeScreen(
-          onGetStarted: () => _go(const OnboardingRoute()),
+          onGetStarted: _startOnboarding,
           onLogin: () => _go(const AuthRoute()),
         ),
       OnboardingRoute() => OnboardingFlow(

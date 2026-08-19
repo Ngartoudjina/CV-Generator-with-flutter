@@ -42,6 +42,35 @@ class AppColors {
   static const Color welcomeInk = Color(0xFF191525);
   static const Color welcomeInkPaper = Color(0xFF221A2E);
 
+  // ── Surfaces claires étagées ─────────────────────────────────
+  //
+  // La maquette n'avait qu'un fond (#F1ECFB) et du blanc. Deux niveaux ne
+  // suffisent pas à hiérarchiser : une carte posée sur une autre carte
+  // disparaît. Ces tons intermédiaires donnent de la profondeur sans ombre.
+
+  /// Fond de page — légèrement plus froid et plus sombre que l'original,
+  /// pour que le blanc des cartes ressorte réellement.
+  static const Color surface0 = Color(0xFFF4F1FA);
+
+  /// Surface surélevée (cartes).
+  static const Color surface1 = Color(0xFFFFFFFF);
+
+  /// Creux : champs de saisie, zones inertes posées sur une carte.
+  static const Color surfaceSunken = Color(0xFFF0ECF8);
+
+  /// Teinte d'accent très diluée, pour les zones informatives.
+  static const Color surfaceAccent = Color(0xFFF3EEFE);
+
+  // ── Encres ───────────────────────────────────────────────────
+  /// Texte principal.
+  static const Color ink = Color(0xFF15111F);
+
+  /// Texte secondaire — un gris violacé plutôt qu'une opacité, qui délave.
+  static const Color inkMuted = Color(0xFF6B6480);
+
+  /// Texte tertiaire, mentions discrètes.
+  static const Color inkFaint = Color(0xFF9B94AC);
+
   // ── Sémantique ───────────────────────────────────────────────
   static const Color errorRed = Color(0xFFCF6679);
   static const Color successGreen = Color(0xFF4CAF87);
