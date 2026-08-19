@@ -108,6 +108,18 @@ class CvLibrary extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Enregistre l'offre visée, qui débloque la correspondance de mots-clés.
+  void setJobOffer(String id, String offer) {
+    _documents = [
+      for (final d in _documents)
+        if (d.id == id)
+          d.copyWith(jobOffer: offer, updatedAt: DateTime.now())
+        else
+          d,
+    ];
+    notifyListeners();
+  }
+
   void rename(String id, String title) {
     _documents = [
       for (final d in _documents)

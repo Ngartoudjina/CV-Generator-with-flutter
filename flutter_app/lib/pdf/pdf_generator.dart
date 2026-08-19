@@ -32,6 +32,14 @@ class PdfGenerator {
 
   static const double _margin = 40;
 
+  /// Nombre de pages du document, lu dans l'entrée `/Count` de l'arbre des
+  /// pages — le compteur que porte le format lui-même.
+  static int pageCountOf(List<int> bytes) {
+    final text = String.fromCharCodes(bytes.map((b) => b & 0xFF));
+    final match = RegExp(r'/Count\s+(\d+)').firstMatch(text);
+    return match == null ? 1 : int.parse(match.group(1)!);
+  }
+
   /// Nom de fichier proposé au partage.
   static String fileName(CvData cvData) {
     final name = cvData.personalInfo.fullName.trim();

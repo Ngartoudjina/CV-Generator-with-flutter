@@ -1,14 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter/services.dart';
+import 'package:pdf/widgets.dart' as pw;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'pdf/pdf_generator.dart';
+
 import 'models/cv_data.dart';
+import 'models/ats_report.dart';
 import 'models/cv_font.dart';
 import 'screens/auth_screen.dart';
 import 'screens/cv_wizard_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/editor_screen.dart';
 import 'screens/onboarding/onboarding_flow.dart';
+import 'screens/preview_export_screen.dart';
 import 'screens/welcome_screen.dart';
 import 'state/cv_library.dart';
 import 'state/cv_model.dart';
@@ -195,6 +201,83 @@ class _AppNavigatorState extends State<AppNavigator>
     if (mounted) _go(const OnboardingRoute());
   }
 
+  /// Ouvre l'aperçu avant export.
+  ///
+  /// Le PDF est réellement généré ici, pour que l'écran affiche son nombre de
+  /// pages et son poids **mesurés** plutôt qu'estimés. C'est aussi ce qui
+  /// permet au contrôle ATS de porter sur le document tel qu'il sera envoyé.
+  Future<void> _openPreview() async {
+    final doc = _library.current;
+    final font = CvFont.fromFamily(doc?.fontFamily);
+    final asset = await rootBundle.load(font.asset);
+    final bytes = await PdfGenerator.build(
+      _model.cvData,
+      base: pw.Font.ttf(asset),
+    );
+    if (!mounted) return;
+
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => PreviewExportScreen(
+          data: _model.cvData,
+          font: font,
+          report: AtsReport.of(_model.cvData, jobOffer: doc?.jobOffer),
+          pageCount: PdfGenerator.pageCountOf(bytes),
+          byteSize: bytes.length,
+          onClose: () => Navigator.of(context).pop(),
+          onExport: _exportPdf,
+          onDefineOffer: _askJobOffer,
+        ),
+      ),
+    );
+  }
+
+  /// Recueille l'offre visée — sans elle, la correspondance de mots-clés est
+  /// incalculable, et l'écran le dit au lieu d'inventer un chiffre.
+  Future<void> _askJobOffer() async {
+    final doc = _library.current;
+    if (doc == null) return;
+
+    final controller = TextEditingController(text: doc.jobOffer);
+    final offer = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Offre visée'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: TextField(
+            controller: controller,
+            maxLines: 8,
+            minLines: 5,
+            autofocus: true,
+            decoration: const InputDecoration(
+              hintText: "Collez ici le texte de l'annonce…",
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Annuler'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, controller.text),
+            child: const Text('Analyser'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+
+    if (offer != null) {
+      _library.setJobOffer(doc.id, offer);
+      if (mounted) {
+        Navigator.of(context).pop();
+        await _openPreview();
+      }
+    }
+  }
+
   /// Port de `MainActivity.exportPdf()` — l'implémentation vit dans
   /// [exportCvPdf], partagée avec l'assistant.
   Future<void> _exportPdf() => exportCvPdf(
@@ -240,7 +323,9 @@ class _AppNavigatorState extends State<AppNavigator>
       EditorRoute(cvId: final id) => EditorScreen(
           cvId: id,
           onBack: () => _go(const DashboardRoute()),
-          onExport: _exportPdf,
+          // « Aperçu » ouvre l'écran de contrôle ; le téléchargement s'y
+          // déclenche, une fois le document vu.
+          onExport: _openPreview,
         ),
     };
   }

@@ -17,6 +17,7 @@ class CvDocument {
     this.templateName = 'Ravel',
     this.version = 1,
     this.fontFamily = 'Inter',
+    this.jobOffer = '',
   }) : id = id ?? _newId();
 
   final String id;
@@ -42,6 +43,13 @@ class CvDocument {
   /// l'apparence des CV déjà enregistrés.
   final String fontFamily;
 
+  /// Texte de l'offre visée, collé par l'utilisateur.
+  ///
+  /// Sans elle, la correspondance de mots-clés — le cœur d'un contrôle ATS —
+  /// ne peut pas être calculée. Elle est donc stockée sur le document : un
+  /// même parcours peut viser plusieurs offres, chacune avec son CV.
+  final String jobOffer;
+
   CvDocument copyWith({
     String? title,
     CvData? data,
@@ -50,6 +58,7 @@ class CvDocument {
     String? templateName,
     int? version,
     String? fontFamily,
+    String? jobOffer,
   }) {
     return CvDocument(
       id: id,
@@ -60,6 +69,7 @@ class CvDocument {
       templateName: templateName ?? this.templateName,
       version: version ?? this.version,
       fontFamily: fontFamily ?? this.fontFamily,
+      jobOffer: jobOffer ?? this.jobOffer,
     );
   }
 
@@ -150,6 +160,7 @@ class CvDocument {
         'templateName': templateName,
         'version': version,
         'fontFamily': fontFamily,
+        'jobOffer': jobOffer,
         'data': _cvDataToJson(data),
       };
 
@@ -164,6 +175,7 @@ class CvDocument {
         templateName: json['templateName'] as String? ?? 'Ravel',
         version: json['version'] as int? ?? 1,
         fontFamily: json['fontFamily'] as String? ?? 'Inter',
+        jobOffer: json['jobOffer'] as String? ?? '',
         data: _cvDataFromJson(json['data'] as Map<String, dynamic>),
       );
 }
