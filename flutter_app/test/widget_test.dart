@@ -158,12 +158,13 @@ void main() {
       await tester.pump();
 
       expect(find.text('ÉTAPE 01 · IDENTITÉ'), findsOneWidget);
-      expect(find.textContaining('0 CHAMPS SUR 8'), findsOneWidget);
+      expect(find.textContaining('0 CHAMP SUR 8'), findsOneWidget);
 
       await tester.enterText(find.byType(TextField), 'Fatou Sow');
       await tester.pump();
       expect(model.cvData.personalInfo.fullName, 'Fatou Sow');
-      expect(find.textContaining('1 CHAMPS SUR 8'), findsOneWidget);
+      // Accord au singulier : « 1 CHAMP », pas « 1 CHAMPS ».
+      expect(find.textContaining('1 CHAMP SUR 8'), findsOneWidget);
 
       await tester.tap(find.text('Continuer'));
       await tester.pump(const Duration(milliseconds: 400));

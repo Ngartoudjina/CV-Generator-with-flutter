@@ -33,7 +33,7 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
   static const _steps = <_StepSpec>[
     _StepSpec(
       label: 'IDENTITÉ',
-      question: 'Comment vous appelez-vous ?',
+      question: 'Votre nom ?',
       hint: 'Le nom qui apparaîtra en haut du CV, tel que les recruteurs '
           'le liront.',
       fieldLabel: 'NOM COMPLET',
@@ -201,10 +201,15 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text('APERÇU EN DIRECT', style: Mono.overline),
-                      Text(
-                        '${spec.previewLabel} · '
-                        '${_filledFields(model.cvData)} CHAMPS SUR 8',
-                        style: Mono.overline,
+                      Builder(
+                        builder: (_) {
+                          final n = _filledFields(model.cvData);
+                          return Text(
+                            '${spec.previewLabel} · $n '
+                            'CHAMP${n > 1 ? "S" : ""} SUR 8',
+                            style: Mono.overline,
+                          );
+                        },
                       ),
                     ],
                   ),
