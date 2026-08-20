@@ -174,21 +174,4 @@ class AppTheme {
         labelSmall: Mono.overline,
       );
 
-  /// Schéma sombre « Gold » du portage Kotlin. Encore lu par les écrans
-  /// d'étape de l'assistant ; il disparaîtra quand ceux-ci passeront à la
-  /// nouvelle maquette.
-  static ThemeData get legacyDark => ThemeData(
-        useMaterial3: true,
-        fontFamily: Sans.family,
-        colorScheme: const ColorScheme.dark(
-          primary: Color(0xFFC8A96E),
-          onPrimary: Color(0xFF0A0A0F),
-          surface: Color(0xFF1A1A24),
-          onSurface: Color(0xFFE8E4DE),
-          surfaceContainerHighest: Color(0xFF2D2D3A),
-          onSurfaceVariant: Color(0xFF6B6B80),
-          error: Color(0xFFCF6679),
-        ),
-        scaffoldBackgroundColor: const Color(0xFF0A0A0F),
-      );
 }

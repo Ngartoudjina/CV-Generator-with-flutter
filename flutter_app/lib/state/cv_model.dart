@@ -9,12 +9,8 @@ import '../models/cv_data.dart';
 /// (comme `_cvData.update { it.copy(...) }`) puis notifie les écouteurs.
 class CvModel extends ChangeNotifier {
   CvData _cvData = const CvData();
-  int _currentStep = 0;
-
-  static const int totalSteps = 5;
 
   CvData get cvData => _cvData;
-  int get currentStep => _currentStep;
 
   void _update(CvData next) {
     _cvData = next;
@@ -25,7 +21,6 @@ class CvModel extends ChangeNotifier {
   /// un document depuis le tableau de bord.
   void load(CvData data) {
     _cvData = data;
-    _currentStep = 0;
     notifyListeners();
   }
 
@@ -102,25 +97,5 @@ class CvModel extends ChangeNotifier {
     _update(_cvData.copyWith(
       languages: _cvData.languages.where((l) => l.id != id).toList(),
     ));
-  }
-
-  // ── Navigation par étapes ──────────────────────────────────
-  void nextStep() {
-    if (_currentStep < totalSteps - 1) {
-      _currentStep++;
-      notifyListeners();
-    }
-  }
-
-  void previousStep() {
-    if (_currentStep > 0) {
-      _currentStep--;
-      notifyListeners();
-    }
-  }
-
-  void goToStep(int step) {
-    _currentStep = step.clamp(0, totalSteps - 1);
-    notifyListeners();
   }
 }

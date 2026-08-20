@@ -12,7 +12,6 @@ import 'models/ats_report.dart';
 import 'models/cv_font.dart';
 import 'widgets/states.dart';
 import 'screens/auth_screen.dart';
-import 'screens/cv_wizard_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/editor_screen.dart';
 import 'screens/onboarding/onboarding_flow.dart';
@@ -44,13 +43,6 @@ class AuthRoute extends AppScreen {
 
 class DashboardRoute extends AppScreen {
   const DashboardRoute();
-}
-
-/// Assistant de création en 5 étapes — n'existait pas dans MainActivity.kt,
-/// où « Créer un nouveau CV » ouvrait l'éditeur de démonstration avec
-/// `cvId = 0`. Voir [CvWizardScreen].
-class WizardRoute extends AppScreen {
-  const WizardRoute();
 }
 
 class EditorRoute extends AppScreen {
@@ -181,11 +173,17 @@ class _AppNavigatorState extends State<AppNavigator>
     _go(const OnboardingRoute());
   }
 
-  /// Crée un CV vierge et ouvre l'assistant dessus.
+  /// Crée un CV vierge et l'ouvre dans l'éditeur.
+  ///
+  /// Un assistant en cinq étapes tenait ici cette place. Aucune des neuf
+  /// maquettes ne le montre : la création y mène à l'éditeur, qui édite
+  /// toutes les sections d'un coup et en indique l'avancement. Il a été
+  /// retiré plutôt que redessiné — il faisait doublon avec cet éditeur et
+  /// avec l'onboarding, qui guide déjà la toute première saisie.
   void _createDocument() {
-    _library.createNew();
+    final id = _library.createNew();
     _model.load(const CvData());
-    _go(const WizardRoute());
+    _go(EditorRoute(id));
   }
 
   /// Déconnexion — les CV restent sur l'appareil, seul le drapeau de session
@@ -330,14 +328,10 @@ class _AppNavigatorState extends State<AppNavigator>
           ),
         ),
       DashboardRoute() => DashboardScreen(
-          // Ouvrir un CV existant → éditeur ; en créer un → assistant.
           onOpenEditor: _openDocument,
           onCreateNew: _createDocument,
           onSignOut: _signOut,
           onReplayOnboarding: _replayOnboarding,
-        ),
-      WizardRoute() => CvWizardScreen(
-          onBack: () => _go(const DashboardRoute()),
         ),
       EditorRoute(cvId: final id) => EditorScreen(
           cvId: id,

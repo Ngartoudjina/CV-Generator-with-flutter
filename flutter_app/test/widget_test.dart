@@ -1,7 +1,6 @@
 import 'package:cvgenerator/app.dart';
 import 'package:cvgenerator/models/cv_data.dart';
 import 'package:cvgenerator/models/cv_document.dart';
-import 'package:cvgenerator/screens/cv_wizard_screen.dart';
 import 'package:cvgenerator/screens/dashboard_screen.dart';
 import 'package:cvgenerator/screens/editor_screen.dart';
 import 'package:cvgenerator/screens/onboarding/onboarding_flow.dart';
@@ -270,60 +269,6 @@ void main() {
     });
   });
 
-  group('Assistant de création', () {
-    Widget wizard(CvModel model) => MultiProvider(
-          providers: [
-            ChangeNotifierProvider<CvLibrary>(create: (_) => CvLibrary()),
-            ChangeNotifierProvider<CvModel>.value(value: model),
-          ],
-          child: MaterialApp(home: CvWizardScreen(onBack: () {})),
-        );
-
-    testWidgets('l\'étape Identité bloque tant qu\'elle est incomplète',
-        (tester) async {
-      final model = CvModel();
-      await tester.pumpWidget(wizard(model));
-      await tester.pump(const Duration(milliseconds: 400));
-
-      expect(find.text('Étape 1 / 5'), findsOneWidget);
-
-      // « Suivant » est désactivé : nom, titre et email sont vides.
-      final next = tester.widget<FilledButton>(
-        find.widgetWithText(FilledButton, 'Suivant'),
-      );
-      expect(next.onPressed, isNull);
-
-      // Cliquer une pastille plus loin est refusé, avec une explication.
-      await tester.tap(find.text('Compétences'));
-      await tester.pump(); // déclenche le SnackBar
-      await tester.pump(const Duration(milliseconds: 400)); // le fait entrer
-
-      expect(find.textContaining('pour continuer'), findsOneWidget);
-      expect(model.currentStep, 0);
-    });
-
-    testWidgets('une fois l\'identité remplie, la navigation se débloque',
-        (tester) async {
-      final model = CvModel()
-        ..updatePersonalInfo(
-          const PersonalInfo(
-            fullName: 'Fatou Sow',
-            jobTitle: 'Designer',
-            email: 'f@example.com',
-          ),
-        );
-
-      await tester.pumpWidget(wizard(model));
-      await tester.pump(const Duration(milliseconds: 400));
-
-      await tester.tap(find.widgetWithText(FilledButton, 'Suivant'));
-      await tester.pump(const Duration(milliseconds: 400));
-
-      expect(model.currentStep, 1);
-      expect(find.text('Étape 2 / 5'), findsOneWidget);
-    });
-  });
-
   group('Onglets du tableau de bord', () {
     Widget dashboard({VoidCallback? onSignOut}) => MultiProvider(
           providers: [
@@ -586,19 +531,6 @@ void main() {
 
       expect(model.cvData.experiences.first.company, 'A');
       expect(model.cvData.experiences.last.company, 'B2');
-    });
-
-    test('goToStep borne l\'index aux étapes existantes', () {
-      final model = CvModel();
-
-      model.goToStep(99);
-      expect(model.currentStep, CvModel.totalSteps - 1);
-
-      model.goToStep(-5);
-      expect(model.currentStep, 0);
-
-      model.previousStep();
-      expect(model.currentStep, 0, reason: 'pas de débordement sous zéro');
     });
 
     test('period et years ne laissent pas de tiret orphelin', () {
