@@ -351,10 +351,58 @@ void main() {
       // L'identité vient du CV le plus récent, faute de compte utilisateur.
       expect(find.text('amina@example.com'), findsOneWidget);
 
+      // L'écran est plus long que la surface de test, et sa liste est
+      // paresseuse : la déconnexion, en bas, demande un défilement.
+      await tester.scrollUntilVisible(
+        find.text('Se déconnecter'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
       await tester.tap(find.text('Se déconnecter'));
       await tester.pump();
       expect(signedOut, isTrue);
     });
+    testWidgets('le profil renvoie au choix de police', (tester) async {
+      // La ligne « Police du document » de la maquette 08 n'ouvre pas un
+      // écran de plus : elle mène là où le choix se fait déjà.
+      await tester.pumpWidget(dashboard());
+      await tester.pump(const Duration(milliseconds: 900));
+
+      await tester.tap(find.text('PROFIL'));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.tap(find.text('Police du document'));
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.text('POLICE DU DOCUMENT'), findsOneWidget);
+    });
+
+    testWidgets('une bibliothèque vide propose de créer un CV', (tester) async {
+      var created = false;
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<CvModel>(create: (_) => CvModel()),
+            ChangeNotifierProvider<CvLibrary>(
+              create: (_) => CvLibrary(documents: []),
+            ),
+          ],
+          child: MaterialApp(
+            home: DashboardScreen(
+              onOpenEditor: (_) {},
+              onCreateNew: () => created = true,
+              onSignOut: () {},
+              onReplayOnboarding: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 900));
+
+      expect(find.text("Aucun CV pour l'instant"), findsOneWidget);
+      await tester.tap(find.text('Créer mon premier CV'));
+      expect(created, isTrue);
+    });
+
     testWidgets("L'onglet Modeles propose et applique une police",
         (tester) async {
       // L'onglet existait dans la maquette mais restait vide. Il porte

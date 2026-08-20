@@ -6,6 +6,7 @@ import '../state/cv_library.dart';
 import '../theme/design_tokens.dart';
 import 'profile_screen.dart';
 import 'templates_screen.dart';
+import '../widgets/states.dart';
 
 /// « Mes CV » — `maquettes/04_mes-cv.jpg`.
 ///
@@ -73,6 +74,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           2 => ProfileScreen(
               onSignOut: widget.onSignOut,
               onReplayOnboarding: widget.onReplayOnboarding,
+              onOpenTemplates: () => setState(() => _tab = 1),
             ),
           _ => _Library(
               documents: docs,
@@ -157,7 +159,14 @@ class _Library extends StatelessWidget {
               ],
             ],
 
-            if (documents.isEmpty) const _EmptyLibrary(),
+            if (documents.isEmpty)
+              EmptyState(
+                title: "Aucun CV pour l'instant",
+                message: "Décrivez votre parcours, l'IA s'occupe de la mise "
+                    'en forme.',
+                actionLabel: 'Créer mon premier CV',
+                onAction: onCreateNew,
+              ),
           ],
         ),
 
@@ -465,30 +474,6 @@ class _NewCvButton extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _EmptyLibrary extends StatelessWidget {
-  const _EmptyLibrary();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.symmetric(
-        horizontal: Space.xl,
-        vertical: Space.xxxl,
-      ),
-      child: Column(
-        children: [
-          Text('Aucun CV pour l\'instant.', style: Sans.body),
-          SizedBox(height: Space.sm),
-          Text(
-            'CRÉEZ LE PREMIER CI-DESSOUS',
-            style: Mono.overline,
-          ),
-        ],
       ),
     );
   }

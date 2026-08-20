@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
@@ -9,6 +10,7 @@ import 'pdf/pdf_generator.dart';
 import 'models/cv_data.dart';
 import 'models/ats_report.dart';
 import 'models/cv_font.dart';
+import 'widgets/states.dart';
 import 'screens/auth_screen.dart';
 import 'screens/cv_wizard_screen.dart';
 import 'screens/dashboard_screen.dart';
@@ -20,6 +22,7 @@ import 'state/cv_library.dart';
 import 'state/cv_model.dart';
 import 'state/cv_storage.dart';
 import 'theme/app_theme.dart';
+import 'theme/design_tokens.dart';
 import 'utils/pdf_export.dart';
 
 /// Port de la `sealed class AppScreen` de MainActivity.kt.
@@ -209,11 +212,27 @@ class _AppNavigatorState extends State<AppNavigator>
   Future<void> _openPreview() async {
     final doc = _library.current;
     final font = CvFont.fromFamily(doc?.fontFamily);
-    final asset = await rootBundle.load(font.asset);
-    final bytes = await PdfGenerator.build(
-      _model.cvData,
-      base: pw.Font.ttf(asset),
+
+    // La composition du PDF n'est pas instantanée — la police pèse plusieurs
+    // méga-octets et le document est réellement construit. Sans signal,
+    // l'appui sur « Aperçu » semble ne rien faire.
+    unawaited(
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const _GeneratingDialog(),
+      ),
     );
+
+    final Uint8List bytes;
+    try {
+      final asset = await rootBundle.load(font.asset);
+      bytes = await PdfGenerator.build(_model.cvData, base: pw.Font.ttf(asset));
+    } finally {
+      // Dans un `finally` : une composition qui échoue ne doit pas laisser
+      // l'utilisateur devant une attente qu'aucune action ne ferme.
+      if (mounted) Navigator.of(context).pop();
+    }
     if (!mounted) return;
 
     await Navigator.of(context).push(
@@ -328,5 +347,21 @@ class _AppNavigatorState extends State<AppNavigator>
           onExport: _openPreview,
         ),
     };
+  }
+}
+
+/// Attente de la composition du PDF, dans le motif de la maquette 09.
+class _GeneratingDialog extends StatelessWidget {
+  const _GeneratingDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Dialog(
+      backgroundColor: Paper.sheet,
+      child: Padding(
+        padding: EdgeInsets.symmetric(vertical: Space.xl),
+        child: LoadingSkeleton(label: 'COMPOSITION DU DOCUMENT', rows: 1),
+      ),
+    );
   }
 }

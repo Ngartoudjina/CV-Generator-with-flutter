@@ -14,8 +14,8 @@ void main() {
     test('un CV vide echoue sur la forme, pas sur les mots-cles', () {
       final r = AtsReport.of(const CvData());
 
-      expect(checkNamed(r, 'Coordonnées détectables').status,
-          AtsStatus.warning);
+      expect(
+          checkNamed(r, 'Coordonnées détectables').status, AtsStatus.warning);
       expect(checkNamed(r, 'Dates renseignées').status, AtsStatus.warning);
 
       // La structure reste bonne : c'est nous qui produisons le PDF.
