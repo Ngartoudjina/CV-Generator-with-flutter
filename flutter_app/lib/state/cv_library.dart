@@ -131,6 +131,16 @@ class CvLibrary extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Remet un document supprimé, à sa place dans le tri par date — c'est
+  /// [sortedByDate] qui ordonne l'affichage, donc l'ordre d'insertion ici
+  /// n'a pas d'importance.
+  void restore(CvDocument doc) {
+    if (_documents.any((d) => d.id == doc.id)) return;
+    _documents = [..._documents, doc];
+    _currentId ??= doc.id;
+    notifyListeners();
+  }
+
   void remove(String id) {
     _documents = _documents.where((d) => d.id != id).toList();
     if (_currentId == id) {

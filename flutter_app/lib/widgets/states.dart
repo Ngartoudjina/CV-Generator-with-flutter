@@ -33,26 +33,10 @@ class EmptyState extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // Une feuille en pointillés plutôt qu'une icône : on annonce ce qui
-          // manque, un document.
-          Container(
-            width: 72,
-            height: 88,
-            padding: const EdgeInsets.all(Space.md),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(Radii.xs),
-              border: Border.all(color: Paper.ruleStrong),
-            ),
-            child: Align(
-              alignment: Alignment.topLeft,
-              child: Container(
-                width: 28,
-                height: 3,
-                color: Paper.ruleStrong,
-              ),
-            ),
-          ),
-
+          // Une feuille en pointillés plutôt qu'une icône : on annonce ce
+          // qui manque, un document. Les proportions sont celles d'une page
+          // A4 (0,707), comme la vignette des documents existants.
+          const _DashedSheet(width: 64, height: 90),
           const SizedBox(height: Space.xl),
           Text(
             title,
@@ -71,6 +55,13 @@ class EmptyState extends StatelessWidget {
               ),
               child: FilledButton(
                 onPressed: onAction,
+                // Le thème étire les boutons sur toute la largeur ; ici la
+                // maquette en montre un qui épouse son libellé, seul au
+                // milieu d'une page vide.
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(0, 56),
+                  padding: const EdgeInsets.symmetric(horizontal: Space.xxl),
+                ),
                 child: Text(actionLabel!),
               ),
             ),
@@ -275,4 +266,69 @@ class SuccessSheet extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Contour en tirets de la feuille absente.
+///
+/// Flutter ne sait pas tracer un `Border` en pointillés : `BorderSide` n'a
+/// pas de style tireté. D'où ce peintre, qui parcourt le tracé arrondi et
+/// n'en dessine qu'un segment sur deux.
+class _DashedSheet extends StatelessWidget {
+  const _DashedSheet({required this.width, required this.height});
+
+  final double width;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      size: Size(width, height),
+      painter: _DashedSheetPainter(),
+    );
+  }
+}
+
+class _DashedSheetPainter extends CustomPainter {
+  static const _dash = 4.0;
+  static const _gap = 3.0;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final stroke = Paint()
+      ..color = Paper.ruleStrong
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+
+    final outline = Path()
+      ..addRRect(
+        RRect.fromRectAndRadius(
+          Offset.zero & size,
+          const Radius.circular(Radii.xs),
+        ),
+      );
+
+    for (final metric in outline.computeMetrics()) {
+      var distance = 0.0;
+      while (distance < metric.length) {
+        final end = (distance + _dash).clamp(0.0, metric.length);
+        canvas.drawPath(metric.extractPath(distance, end), stroke);
+        distance = end + _gap;
+      }
+    }
+
+    // Les deux lignes de texte suggérées à l'intérieur.
+    final fill = Paint()..color = Paper.ruleStrong;
+    const inset = 10.0;
+    canvas.drawRect(
+      Rect.fromLTWH(inset, inset + 4, size.width - inset * 2, 2.5),
+      fill,
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(inset, inset + 12, (size.width - inset * 2) * 0.55, 2.5),
+      fill,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_DashedSheetPainter oldDelegate) => false;
 }

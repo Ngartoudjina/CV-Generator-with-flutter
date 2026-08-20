@@ -60,6 +60,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return [for (final k in keys) (k, groups[k]!)];
   }
 
+  /// Supprime un document, en laissant le temps de se raviser : une
+  /// suppression sans retour arrière est le genre de geste qu'on regrette
+  /// une fois sur deux.
+  void _delete(CvDocument doc) {
+    final library = context.read<CvLibrary>();
+    library.remove(doc.id);
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('« ${doc.title} » supprimé'),
+          action: SnackBarAction(
+            label: 'Annuler',
+            onPressed: () => library.restore(doc),
+          ),
+        ),
+      );
+  }
+
   @override
   Widget build(BuildContext context) {
     final library = context.watch<CvLibrary>();
@@ -81,6 +100,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               groups: _grouped(docs),
               onOpen: widget.onOpenEditor,
               onCreateNew: widget.onCreateNew,
+              onDelete: _delete,
             ),
         },
       ),
@@ -100,12 +120,14 @@ class _Library extends StatelessWidget {
     required this.groups,
     required this.onOpen,
     required this.onCreateNew,
+    required this.onDelete,
   });
 
   final List<CvDocument> documents;
   final List<(String, List<CvDocument>)> groups;
   final ValueChanged<String> onOpen;
   final VoidCallback onCreateNew;
+  final ValueChanged<CvDocument> onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -154,7 +176,18 @@ class _Library extends StatelessWidget {
             for (final (label, items) in groups) ...[
               _GroupHeader(label: label, count: items.length),
               for (final doc in items) ...[
-                _DocumentRow(doc: doc, onTap: () => onOpen(doc.id)),
+                // Le balayage n'apparaît pas dans la maquette, qui ne montre
+                // qu'un chevron. Il n'en change pas l'aspect, et sans lui
+                // rien ne peut supprimer un document : `CvLibrary.remove`
+                // n'était appelé de nulle part, et l'état vide de la
+                // maquette 09 restait inatteignable.
+                Dismissible(
+                  key: ValueKey(doc.id),
+                  direction: DismissDirection.endToStart,
+                  background: const _DeleteBackground(),
+                  onDismissed: (_) => onDelete(doc),
+                  child: _DocumentRow(doc: doc, onTap: () => onOpen(doc.id)),
+                ),
                 const Divider(color: Paper.rule, height: 1, indent: Space.xl),
               ],
             ],
@@ -171,11 +204,16 @@ class _Library extends StatelessWidget {
         ),
 
         // ── Bouton de création ────────────────────────────────
-        Positioned(
-          right: Space.xl,
-          bottom: Space.xl,
-          child: _NewCvButton(onTap: onCreateNew),
-        ),
+        //
+        // Masqué quand la bibliothèque est vide : l'état de la maquette 09
+        // porte déjà l'unique action, et deux boutons pour la même chose
+        // en affaibliraient un.
+        if (documents.isNotEmpty)
+          Positioned(
+            right: Space.xl,
+            bottom: Space.xl,
+            child: _NewCvButton(onTap: onCreateNew),
+          ),
       ],
     );
   }
@@ -533,6 +571,28 @@ class _BottomNav extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Fond révélé par le balayage de suppression.
+class _DeleteBackground extends StatelessWidget {
+  const _DeleteBackground();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Accent.redWash,
+      alignment: Alignment.centerRight,
+      padding: const EdgeInsets.only(right: Space.xl),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('SUPPRIMER', style: Mono.overlineAccent),
+          SizedBox(width: Space.md),
+          Icon(Icons.delete_outline, size: 20, color: Accent.red),
+        ],
       ),
     );
   }

@@ -358,10 +358,32 @@ void main() {
         200,
         scrollable: find.byType(Scrollable).first,
       );
+      // Un cran de plus : la barre de navigation recouvre le bas du
+      // défilement, et `scrollUntilVisible` s'arrête dès l'entrée en vue.
+      await tester.drag(find.byType(Scrollable).first, const Offset(0, -160));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Se déconnecter'));
       await tester.pump();
       expect(signedOut, isTrue);
     });
+    testWidgets("supprimer le dernier CV découvre l'état vide", (tester) async {
+      await tester.pumpWidget(dashboard());
+      await tester.pump(const Duration(milliseconds: 900));
+
+      expect(find.text('CV Senior Dev'), findsOneWidget);
+
+      await tester.drag(find.text('CV Senior Dev'), const Offset(-600, 0));
+      await tester.pumpAndSettle();
+
+      expect(find.text('CV Senior Dev'), findsNothing);
+      expect(find.text("Aucun CV pour l'instant"), findsOneWidget);
+
+      // La suppression reste rattrapable tant que la bannière est là.
+      await tester.tap(find.text('Annuler'));
+      await tester.pumpAndSettle();
+      expect(find.text('CV Senior Dev'), findsOneWidget);
+    });
+
     testWidgets('le profil renvoie au choix de police', (tester) async {
       // La ligne « Police du document » de la maquette 08 n'ouvre pas un
       // écran de plus : elle mène là où le choix se fait déjà.

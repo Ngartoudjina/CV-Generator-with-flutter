@@ -53,7 +53,7 @@ class ProfileScreen extends StatelessWidget {
             Space.xl,
             Space.lg,
             Space.xl,
-            Space.xl,
+            0,
           ),
           child: _PlanCard(used: docs.length),
         ),
@@ -269,11 +269,34 @@ class _PlanCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: Space.lg),
-          Text(
-            "La formule payante — CV illimités, tous les modèles, export "
-            "DOCX — n'est pas encore disponible. La limite affichée n'est "
-            'pas appliquée.',
-            style: Sans.body.copyWith(fontSize: 13),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  "CV illimités, tous les modèles et l'export DOCX.",
+                  style: Sans.body.copyWith(fontSize: 13),
+                ),
+              ),
+              const SizedBox(width: Space.md),
+              // La maquette met ici un bouton « Premium ». Il n'y a pas de
+              // facturation : un appel à l'action qui ne mène nulle part
+              // vaut moins qu'une étiquette qui dit où en est la chose.
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: Space.md,
+                  vertical: Space.sm,
+                ),
+                decoration: BoxDecoration(
+                  color: Accent.redWash,
+                  borderRadius: BorderRadius.circular(Radii.xs),
+                  border: Border.all(color: Accent.redLine),
+                ),
+                child: Text(
+                  'BIENTÔT',
+                  style: Mono.badge.copyWith(color: Accent.red),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -292,7 +315,7 @@ class _SectionHeader extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         Space.xl,
-        Space.xl,
+        Space.lg,
         Space.xl,
         Space.md,
       ),
